@@ -26,10 +26,12 @@ def build_server(facts: Facts) -> MCPServer:
 
     @server.tool()
     def check_document(text: str) -> dict[str, Any]:
-        """Check a draft (Markdown or plain text) against the facts file.
+        """Check a draft (Markdown or plain text, at most 200,000 characters) against the facts
+        file.
 
         Returns passed, error and warning counts, findings with line/column and message, and
-        a trace from each accepted number to the fact that supports it.
+        a trace from each accepted number to the fact that supports it. A longer document is
+        rejected with an error instead of being checked in part.
         """
         return checker.check(text).model_dump()
 

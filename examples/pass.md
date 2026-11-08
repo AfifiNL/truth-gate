@@ -1,6 +1,6 @@
-# Robin Example: platform engineering lead
+# Robin Example: speaker bio
 
-Robin led a team of 12 engineers at Lakeside Freight Ltd between 2019 and 2023, running
+Robin led a team of 12 engineers at ExampleFreight Ltd between 2019 and 2023, running
 Kubernetes and Terraform for the whole platform.
 
 - Moved batch jobs to spot instances, which cut monthly cloud costs by 18% in 2022.

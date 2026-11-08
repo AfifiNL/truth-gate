@@ -1,29 +1,29 @@
 {
   "all": {
-    "cases": 34,
+    "cases": 35,
     "catch_rate": 0.833,
-    "false_alarm_rate": 0.1,
+    "false_alarm_rate": 0.091,
     "catch_blocked_phrase": 0.8,
     "catch_invented_skill": 0.833,
     "catch_out_of_context": 0.714,
     "catch_wrong_number": 1.0
   },
   "dev": {
+    "cases": 18,
+    "catch_rate": 0.833,
+    "false_alarm_rate": 0.167,
+    "catch_blocked_phrase": 0.667,
+    "catch_invented_skill": 1.0,
+    "catch_out_of_context": 0.667,
+    "catch_wrong_number": 1.0
+  },
+  "test": {
     "cases": 17,
     "catch_rate": 0.833,
     "false_alarm_rate": 0.0,
     "catch_blocked_phrase": 1.0,
     "catch_invented_skill": 0.667,
     "catch_out_of_context": 0.75,
-    "catch_wrong_number": 1.0
-  },
-  "test": {
-    "cases": 17,
-    "catch_rate": 0.833,
-    "false_alarm_rate": 0.2,
-    "catch_blocked_phrase": 0.667,
-    "catch_invented_skill": 1.0,
-    "catch_out_of_context": 0.667,
     "catch_wrong_number": 1.0
   }
 }

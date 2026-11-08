@@ -1,11 +1,12 @@
 # truth-gate
 
-A deterministic check for AI-written documents (a CV, a cover letter, a report, a product
-page) against a **facts file** you control:
+A deterministic check for AI-written documents (reports, product pages, proposals, press
+releases, speaker bios) against a **facts file** you control:
 
 - every **number** in the document must equal a number in a fact **and** be used in that fact's
   context (a true "12" from "a team of 12 engineers" does not license "12 years of experience");
-- every **skill or tool** the document names must be listed in the facts file;
+- every **skill or tool** the document names must be listed in the facts file (useful wherever a
+  draft describes what a person or team can do, a CV included);
 - **blocked phrases** fail the document;
 - a **tone lint** warns about machine-sounding phrases (never fails).
 
@@ -25,8 +26,8 @@ FAIL: 4 error(s), 2 warning(s); 7 number(s) and 3 skill mention(s) checked
   WARNING 7:36 tone: machine-tone phrase 'seamless'
   WARNING 7:46 tone: machine-tone phrase 'cutting-edge'
   traced numbers:
-    3: 2019 <- team-lead (engineer, freight, lakeside, ltd, team)
-    3: 2023 <- team-lead (engineer, freight, lakeside, ltd)
+    3: 2019 <- team-lead (engineer, examplefreight, ltd, team)
+    3: 2023 <- team-lead (engineer, examplefreight, ltd, team)
     6: 18% <- cloud-costs (cloud, cost, cut, monthly)
     6: 2022 <- cloud-costs (cloud, cost, cut, monthly)
     8: €1.2m <- budget (budget, platform)
@@ -60,12 +61,13 @@ uv run truth-gate check draft.md --facts my-facts.yaml --strict --json   # warni
 subject: Robin Example          # the subject's own name is never counted as shared context
 facts:
   - id: team-lead
-    text: Led a team of 12 engineers at Lakeside Freight Ltd from 2019 to 2023.
-    source: employment reference letter, Lakeside Freight Ltd, 2023   # where a reviewer checks it
+    text: Led a team of 12 engineers at ExampleFreight Ltd from 2019 to 2023.
+    source: employment reference letter, ExampleFreight Ltd, 2023   # where a reviewer checks it
   - id: budget
     text: Managed a platform budget of €1.2 million per year.
     source: budget approval e-mail, 2022
-    numbers: []                 # optional: numbers the text does not spell out ({value, unit})
+    numbers: []                 # optional: numbers the text does not spell out
+                                # ({value, unit: plain | percent | ISO currency code})
 skills:
   - Python
   - name: PostgreSQL
@@ -76,37 +78,61 @@ blocked_phrases: [guaranteed results, world-class]
 ```
 
 Numbers are read from each fact's text, so a fact is written once, in plain words. Unknown keys
-are rejected, so a typo cannot silently switch a check off.
+and duplicate keys are rejected, so a typo or a second `blocked_phrases:` line cannot silently
+switch a check off.
 
 ## The rules, exactly
 
-**Numbers.** Integers, decimals, thousands separators, percentages (`%`, "percent", "per
-cent"), money (`€ $ £`, `EUR USD GBP`, "euros"), scales (`k`, `m`, `bn`, "thousand", "million"),
-ranges (`10–15%`, `€2–3m`: the unit applies to both ends), ordinals and written-out numbers from
-two to ninety-nine. A document number passes when:
+**Numbers.** Every run of digits is read as a number unless a skip rule below applies, plus
+written-out numbers ("twelve", "twenty-five", and "one"/"a" when a scale word follows: "one
+million", "a thousand"). Read with each number: percentages (`%`, "percent", "per cent",
+"pct"), money (`€ $ £ ¥ ₹`, `US$ C$ A$ NZ$ HK$ S$`, ISO codes such as `EUR USD GBP CHF CAD`
+before or after the number, "euros", "dollars", "francs", "pesos" ..., with a country
+adjective where given: "Canadian dollars" is CAD, an unknown adjective matches nothing), scales (`k`, `m`, `B`, `bn`,
+"hundred", "thousand", "million", "billion"), and units glued to the number (`50x`, `100ms`,
+`40GB`, `1990s`). Ranges written with a dash (`10–15%`, `€2–3m`) give both ends the unit; a
+scale is carried over only if the range stays ordered, and a year never takes a unit ("from 500
+to 2m" is two separate numbers). A document number passes when:
 
 1. some fact contains an equal quantity: same value; a percentage only matches a percentage;
-   money only matches money in the same currency; a plain number may match money (leaving out
-   the currency is not a false claim); and
+   money only matches money in the same currency (contradictory markers such as `€5 USD` match
+   nothing); a number with a glued unit only matches the same unit; a plain number may match
+   money or a unit-bearing number (leaving out the currency or unit is not a false claim); and
 2. at least `min_context_overlap` content words within `context_window` words either side of the
-   number, **in the same sentence**, also appear in that fact's text. Content words are stemmed
-   lightly ("conferences" = "conference"), and stopwords, units ("years", "months"), numbers and
-   the subject's name are ignored.
+   number, **in the same sentence and on the same line**, also appear in that fact's text.
+   Every line break ends a sentence, so list items and wrapped lines never lend each other
+   context. Content words are stemmed lightly ("conferences" = "conference"), and stopwords,
+   units ("years", "months"), numbers and the subject's name are ignored.
 
-Not read as numbers: code spans and fenced code, URLs and link targets, ordered-list markers,
-version strings with two or more dots (`3.12.1`), times (`10:30`), numbers joined by a slash
-(`24/7`, `03/2021`), word-hyphen-number names (`COVID-19`), and the word "one" ("one of the
-reasons"). Anything in this list is **not checked**, so a false figure written that way passes.
+**Not checked** (each is a place where a false figure passes, so the list is complete):
 
-**Skills.** 110 built-in tool and skill entries, with aliases, (`src/truth_gate/data/skills.txt`) plus the
-facts file's skills and `vocabulary`, matched as whole terms, longest first, with aliases mapped
-to one name (`K8s` → Kubernetes). Short or ambiguous terms are case-sensitive (`Go`, `R`,
-`React`, `Spark`, `Helm`), so "teams react quickly" is not a claim about a library. A term
-passes if it is a listed skill or appears in a fact's text (a fact that says "from MySQL to
-PostgreSQL" makes mentioning MySQL true).
+- numbers inside fenced code (``` and ~~~), inline code, HTML comments, URLs and link targets;
+  an unclosed fence or comment is not treated as code, so its numbers are checked;
+- ordered-list markers where a Markdown list can start (after a blank line, inside a list, or a
+  list starting at 1); a wrapped line that merely starts with "40. " is checked;
+- times (`10:30`); numbers joined by a slash (`24/7`, `03/2021`); version strings with two or
+  more dots (`3.12.1`); comma-separated digits that are not thousands groups (`1,5`, `1,2,3`);
+  digits glued to a preceding letter (`v2`, `Q3`, `H2O`, `B2B`); word-hyphen-number names below
+  four digits (`COVID-19`; a four-digit year after a hyphen, `mid-2019`, is checked);
+- the words "one" and "a" without a scale word ("one of the reasons", "a team").
+
+**Skills.** 110 built-in tool and skill entries with aliases (`src/truth_gate/data/skills.txt`),
+plus the facts file's skills and `vocabulary`, matched as whole terms, longest first, with
+aliases mapped to one name (`K8s` → Kubernetes). Short or ambiguous terms are case-sensitive
+(`Go`, `R`, `React`, `Spark`, `Helm`), so "teams react quickly" is not a claim about a library.
+A capitalised ambiguous word that opens a sentence ("Swift responses matter", "Spark joy") is a
+warning, not an error, and "Go-to-market" is never the language. A term passes if it is a
+listed skill or appears in a fact's text (a fact that says "from MySQL to PostgreSQL" makes
+mentioning MySQL true).
 
 **Blocked phrases** match case-insensitively as whole phrases, across line breaks. **Tone**
-phrases (`src/truth_gate/data/tone.txt`) are warnings only; `--strict` makes them fail.
+phrases (`src/truth_gate/data/tone.txt`) are warnings only; `--strict` makes them fail. Skills,
+blocked phrases and tone are checked on the whole text, inside code spans too: masking applies
+to numbers only.
+
+**Input limits.** Documents are capped at 200,000 characters (CLI and MCP); a longer document
+is rejected with exit code 2 (or an MCP tool error), never checked in part. Non-UTF-8 input
+exits 2. Every pattern runs in linear time.
 
 ## MCP server
 
@@ -130,9 +156,9 @@ protocol handshake) and once through a real `truth-gate serve` subprocess over s
 
 ## Evals
 
-`evals/cases.jsonl` holds 34 synthetic documents about a fictional person (`evals/facts.yaml`,
+`evals/cases.jsonl` holds 35 synthetic documents about a fictional person (`evals/facts.yaml`,
 different from the examples), built deterministically by `evals/build_cases.py` from
-hand-written sentences: 10 clean documents and 24 with exactly one injected error (wrong number,
+hand-written sentences: 11 clean documents and 24 with exactly one injected error (wrong number,
 number out of context, invented skill, blocked phrase). Five cases are marked `hard`: they were
 written to show known weaknesses and are expected to be missed. Split: alternate cases go to
 `dev` and `test`.
@@ -145,9 +171,9 @@ Results of `make eval` (deterministic, so these are exact):
 
 | scope | cases | catch rate | false-alarm rate | wrong number | out of context | invented skill | blocked phrase |
 |---|---|---|---|---|---|---|---|
-| all | 34 | 0.833 | 0.100 | 1.000 | 0.714 | 0.833 | 0.800 |
-| dev | 17 | 0.833 | 0.000 | 1.000 | 0.750 | 0.667 | 1.000 |
-| test | 17 | 0.833 | 0.200 | 1.000 | 0.667 | 1.000 | 0.667 |
+| all | 35 | 0.833 | 0.091 | 1.000 | 0.714 | 0.833 | 0.800 |
+| dev | 18 | 0.833 | 0.167 | 1.000 | 0.667 | 1.000 | 0.667 |
+| test | 17 | 0.833 | 0.000 | 1.000 | 0.750 | 0.667 | 1.000 |
 
 Every miss is one of the five `hard` cases:
 
@@ -163,8 +189,8 @@ Every miss is one of the five `hard` cases:
   blocked phrases are whole phrases, not word stems.
 
 The gate (`evals/gate.json`) fails `make check` when, in any scope, the catch rate drops below
-0.75, the false-alarm rate exceeds 0.20, or any metric moves the wrong way against
-`evals/baseline.json`. Tests prove the gate works: a checker that skips numbers, ignores context
+0.75, the false-alarm rate exceeds 0.20, or any metric gets worse than in
+`evals/baseline.json` (an improvement passes; re-record the baseline to lock it in). Tests prove the gate works: a checker that skips numbers, ignores context
 or ignores skills fails it.
 
 **What these numbers are not.** The corpus was written by the same author as the checker, from
@@ -177,8 +203,9 @@ estimate for real AI-written documents.
   pass has a trace to a fact. No model call, no network, same result every run.
 - **Context, not just values.** A value check alone passes a true number attached to the wrong
   claim, which is the most common way an edited draft goes wrong.
-- **Fail closed on input.** Invalid facts files (duplicate ids, missing sources, unknown keys)
-  are rejected; unreadable input exits 2, never "pass".
+- **Fail closed.** Every digit run is a claim unless a documented skip rule says otherwise.
+  Invalid facts files (duplicate ids or keys, missing sources, unknown keys) are rejected;
+  unreadable, non-UTF-8 or oversized input exits 2, never "pass".
 - More in [`docs/DESIGN.md`](docs/DESIGN.md).
 
 ## Limits
@@ -186,6 +213,13 @@ estimate for real AI-written documents.
 - English only. Number words, stopwords and the stemmer are English. A European decimal comma
   (`1,5`) is not read at all, so that number is not checked.
 - ISO dates are read as separate numbers (`2021-03-05` gives 2021, 3 and 5), each needing a fact.
+- Every line break ends a sentence, so in hard-wrapped prose a number near the end of a line
+  loses the context words on the next line (a false alarm, never a false pass).
+- "two hundred and fifty" is read as 200 and 50; "half a million" as one million.
+- `$` alone and "dollars" alone are read as US dollars, so "$5" does not match a fact in
+  Canadian dollars (a false alarm, never a false pass). Currency words outside the built-in list
+  are not recognised: such an amount is read as a plain number, which may match money in any
+  currency.
 - Meaning is not understood: a number used with the right topic words but the wrong meaning
   passes (see the hard cases). The checker narrows what a reviewer must read; it does not
   replace the review.

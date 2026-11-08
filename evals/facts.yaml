@@ -3,8 +3,8 @@
 subject: Jordan Placeholder
 facts:
   - id: team
-    text: Managed a support engineering team of 9 people at Riverbend Parcel Co from 2017 to 2021.
-    source: reference letter, Riverbend Parcel Co
+    text: Managed a support engineering team of 9 people at ExampleParcel Co from 2017 to 2021.
+    source: reference letter, ExampleParcel Co
   - id: response-time
     text: Reduced the average first-response time for support tickets from 26 hours to 4 hours.
     source: support dashboard export, 2020
@@ -15,8 +15,8 @@ facts:
     text: Automated 35% of incoming ticket routing with Python and Zapier.
     source: automation runbook
   - id: revenue
-    text: Supported a product line with annual revenue of $3.5 million at Granite Peak Software.
-    source: annual report, Granite Peak Software
+    text: Supported a product line with annual revenue of $3.5 million at ExampleSoft Ltd.
+    source: annual report, ExampleSoft Ltd
   - id: scrum
     text: Completed a Scrum Master certification in 2020.
     source: certificate

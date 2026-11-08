@@ -2,8 +2,8 @@
 subject: Robin Example
 facts:
   - id: team-lead
-    text: Led a team of 12 engineers at Lakeside Freight Ltd from 2019 to 2023.
-    source: employment reference letter, Lakeside Freight Ltd, 2023
+    text: Led a team of 12 engineers at ExampleFreight Ltd from 2019 to 2023.
+    source: employment reference letter, ExampleFreight Ltd, 2023
   - id: cloud-costs
     text: Cut monthly cloud costs by 18% by moving batch jobs to spot instances in 2022.
     source: internal cost report Q4 2022

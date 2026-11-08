@@ -22,6 +22,8 @@ def test_tools_over_the_in_memory_transport(example_facts: Facts, mode: str) -> 
             assert bad.structured_content is not None
             assert bad.structured_content["passed"] is False
             assert bad.structured_content["findings"][0]["text"] == "15"
+            huge = await client.call_tool("check_document", {"text": "x" * 200_001})
+            assert huge.is_error
             listed = await client.call_tool("list_facts", {})
             assert listed.structured_content is not None
             assert "PostgreSQL" in listed.structured_content["skills"]

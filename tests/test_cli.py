@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from conftest import ROOT
+from truth_gate.checker import MAX_DOCUMENT_CHARS
 from truth_gate.cli import main
 
 FACTS = str(ROOT / "examples" / "facts.yaml")
@@ -38,3 +39,19 @@ def test_facts_command_lists_numbers(capsys: pytest.CaptureFixture[str]) -> None
     out = capsys.readouterr().out
     assert out.startswith("OK: 6 facts about Robin Example")
     assert "budget: numbers EUR 1200000" in out
+
+
+def test_non_utf8_and_oversize_documents_exit_2(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    latin = tmp_path / "latin1.md"
+    latin.write_bytes("caf\xe9".encode("latin-1"))
+    assert main(["check", str(latin), "--facts", FACTS]) == 2
+    assert "not valid UTF-8" in capsys.readouterr().err
+    big = tmp_path / "big.md"
+    big.write_text("x" * (MAX_DOCUMENT_CHARS + 1), encoding="utf-8")
+    assert main(["check", str(big), "--facts", FACTS]) == 2
+    assert "limit" in capsys.readouterr().err
+    bad_facts = tmp_path / "f.yaml"
+    bad_facts.write_bytes(b"\xff\xfe")
+    assert main(["check", str(ROOT / "examples" / "pass.md"), "--facts", str(bad_facts)]) == 2

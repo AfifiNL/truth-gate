@@ -1,24 +1,35 @@
 """The four checks. Errors fail a document; warnings never do.
 
-1. number  - every quantity must equal a quantity in some fact AND the words around it must
-             share at least `min_context_overlap` content words with that fact's text.
+1. number  - every quantity must equal a quantity in some fact AND the words around it, in the
+             same sentence or line, must share at least `min_context_overlap` content words
+             with that fact's text. Code, comments, URLs and list markers are masked first
+             (numbers there are not claims); see `text.mask` and `numbers.SKIP_RULES`.
 2. skill   - every recognised skill/tool term must be allowed by the facts file.
 3. blocked - a blocked phrase anywhere fails the document.
 4. tone    - machine-tone phrases are reported as warnings.
+
+Skills, blocked phrases and tone are checked on the original text, code spans included:
+masking exists only so that numbers in code or links are not read as claims.
 """
 
 from __future__ import annotations
 
 import re
-from collections.abc import Sequence
+from bisect import bisect_left
 
-from truth_gate.facts import Fact, Facts
-from truth_gate.numbers import Quantity, find_quantities, same_quantity
+from truth_gate.facts import Facts
+from truth_gate.numbers import Quantity, same_quantity, scan
 from truth_gate.report import Finding, Report, Trace
 from truth_gate.skills import Vocabulary, builtin_tone, phrase_pattern
-from truth_gate.text import Span, content_words, line_col, mask, sentence_spans, stem
+from truth_gate.text import Span, content_words, line_col, mask, sentence_spans, span_at
 
+MAX_DOCUMENT_CHARS = 200_000
 _WORD = re.compile(r"[A-Za-z][A-Za-z'-]*")
+_FIRST_WORD = re.compile(r"[\s\-*+#>|]*(?:\d{1,9}[.)]\s+)?")
+
+
+class DocumentTooLarge(ValueError):
+    """The document is longer than MAX_DOCUMENT_CHARS."""
 
 
 class Checker:
@@ -34,85 +45,85 @@ class Checker:
         self._tone = [(p, phrase_pattern(p)) for p in tone if p.strip()]
 
     def check(self, document: str) -> Report:
-        text = mask(document)
+        if len(document) > MAX_DOCUMENT_CHARS:
+            raise DocumentTooLarge(
+                f"document has {len(document):,} characters; the limit is {MAX_DOCUMENT_CHARS:,}"
+            )
         findings: list[Finding] = []
         traces: list[Trace] = []
-        sentences = sentence_spans(text)
-        quantities = find_quantities(text)
-        for q in quantities:
-            self._check_number(
-                document, text, q, _sentence_of(sentences, q.start), findings, traces
-            )
-        hits = self.vocabulary.find(text)
-        for h in hits:
-            if h.canonical not in self.vocabulary.allowed:
-                line, col = line_col(document, h.start)
-                findings.append(
-                    Finding(
-                        check="skill",
-                        severity="error",
-                        line=line,
-                        column=col,
-                        text=h.text,
-                        message=(
-                            f"'{h.text}'"
-                            + (f" ({h.canonical})" if h.canonical != h.text else "")
-                            + " is not a skill in the facts file"
-                        ),
+        n_numbers = self._numbers(document, findings, traces)
+        n_skills = self._skills(document, findings)
+        for check, phrases in (("blocked", self._blocked), ("tone", self._tone)):
+            for phrase, rx in phrases:
+                for m in rx.finditer(document):
+                    line, col = line_col(document, m.start())
+                    findings.append(
+                        Finding(
+                            check="blocked" if check == "blocked" else "tone",
+                            severity="error" if check == "blocked" else "warning",
+                            line=line,
+                            column=col,
+                            text=m.group(0),
+                            message=(
+                                f"blocked phrase '{phrase}'"
+                                if check == "blocked"
+                                else f"machine-tone phrase '{phrase}'"
+                            ),
+                        )
                     )
-                )
-        for phrase, rx in self._blocked:
-            for m in rx.finditer(text):
-                line, col = line_col(document, m.start())
-                findings.append(
-                    Finding(
-                        check="blocked",
-                        severity="error",
-                        line=line,
-                        column=col,
-                        text=m.group(0),
-                        message=f"blocked phrase '{phrase}'",
-                    )
-                )
-        for phrase, rx in self._tone:
-            for m in rx.finditer(text):
-                line, col = line_col(document, m.start())
-                findings.append(
-                    Finding(
-                        check="tone",
-                        severity="warning",
-                        line=line,
-                        column=col,
-                        text=m.group(0),
-                        message=f"machine-tone phrase '{phrase}'",
-                    )
-                )
         findings.sort(key=lambda f: (f.line, f.column, f.check))
         errors = sum(f.severity == "error" for f in findings)
         return Report(
             passed=errors == 0,
             errors=errors,
             warnings=len(findings) - errors,
-            numbers_checked=len(quantities),
-            skills_checked=len(hits),
+            numbers_checked=n_numbers,
+            skills_checked=n_skills,
             findings=findings,
             traces=traces,
         )
 
-    def _check_number(
-        self,
-        document: str,
-        text: str,
-        q: Quantity,
-        sentence: Span,
-        findings: list[Finding],
-        traces: list[Trace],
-    ) -> None:
-        line, col = line_col(document, q.start)
-        candidates = [
-            f for f in self.facts.facts if any(same_quantity(q, fq) for fq in self._fact_qty[f.id])
-        ]
-        if not candidates:
+    # -- numbers ---------------------------------------------------------------------------
+
+    def _numbers(self, document: str, findings: list[Finding], traces: list[Trace]) -> int:
+        text = mask(document)
+        sentences = sentence_spans(text)
+        starts = [s.start for s in sentences]
+        words = list(_WORD.finditer(text))
+        word_starts = [w.start() for w in words]
+        quantities, _skipped = scan(text)
+        for q in quantities:
+            line, col = line_col(document, q.start)
+            sentence = span_at(sentences, starts, q.start) or Span(q.start, q.end)
+            candidates = [
+                f
+                for f in self.facts.facts
+                if any(same_quantity(q, fq) for fq in self._fact_qty[f.id])
+            ]
+            if not candidates:
+                findings.append(
+                    Finding(
+                        check="number",
+                        severity="error",
+                        line=line,
+                        column=col,
+                        text=q.text,
+                        message=f"{q.label()} does not appear in any fact",
+                    )
+                )
+                continue
+            window = self._window(words, word_starts, sentence, q)
+            best_id: str = ""
+            best_shared: set[str] = set()
+            for f in candidates:
+                shared = window & self._fact_words[f.id]
+                if not best_id or len(shared) > len(best_shared):
+                    best_id, best_shared = f.id, shared
+            if len(best_shared) >= self.facts.min_context_overlap:
+                traces.append(
+                    Trace(line=line, text=q.text, fact_id=best_id, shared_words=sorted(best_shared))
+                )
+                continue
             findings.append(
                 Finding(
                     check="number",
@@ -120,51 +131,65 @@ class Checker:
                     line=line,
                     column=col,
                     text=q.text,
-                    message=f"{q.label()} does not appear in any fact",
+                    message=(
+                        f"{q.label()} appears in a fact, but the words around it share no topic "
+                        "with that fact (number used out of context)"
+                    ),
+                    fact_ids=[f.id for f in candidates],
                 )
             )
-            return
-        window = self._window(text, sentence, q)
-        best: tuple[int, Fact, set[str]] | None = None
-        for f in candidates:
-            shared = window & self._fact_words[f.id]
-            if best is None or len(shared) > best[0]:
-                best = (len(shared), f, shared)
-        assert best is not None  # noqa: S101 - candidates is non-empty
-        if best[0] >= self.facts.min_context_overlap:
-            traces.append(
-                Trace(line=line, text=q.text, fact_id=best[1].id, shared_words=sorted(best[2]))
-            )
-            return
-        findings.append(
-            Finding(
-                check="number",
-                severity="error",
-                line=line,
-                column=col,
-                text=q.text,
-                message=(
-                    f"{q.label()} appears in a fact, but the words around it share no topic with "
-                    "that fact (number used out of context)"
-                ),
-                fact_ids=[f.id for f in candidates],
-            )
-        )
+        return len(quantities)
 
-    def _window(self, text: str, sentence: Span, q: Quantity) -> set[str]:
+    def _window(
+        self, words: list[re.Match[str]], word_starts: list[int], sentence: Span, q: Quantity
+    ) -> set[str]:
         """Content words within `context_window` words either side of q, inside its sentence."""
         n = self.facts.context_window
-        words = [m for m in _WORD.finditer(text, sentence.start, sentence.end)]
-        before = [m.group(0) for m in words if m.end() <= q.start][-n:]
-        after = [m.group(0) for m in words if m.start() >= q.end][:n]
+        lo = bisect_left(word_starts, sentence.start)
+        hi = bisect_left(word_starts, sentence.end)
+        mid = bisect_left(word_starts, q.start, lo, hi)
+        before = [w.group(0) for w in words[max(lo, mid - n) : mid] if w.end() <= q.start]
+        after_start = bisect_left(word_starts, q.end, lo, hi)
+        after = [w.group(0) for w in words[after_start : min(hi, after_start + n)]]
         return content_words(" ".join(before + after)) - self._ignore
 
+    # -- skills ----------------------------------------------------------------------------
 
-def _sentence_of(sentences: Sequence[Span], offset: int) -> Span:
-    for s in sentences:
-        if s.start <= offset < s.end:
-            return s
-    return Span(max(0, offset - 200), offset + 200)
+    def _skills(self, document: str, findings: list[Finding]) -> int:
+        hits = self.vocabulary.find(document)
+        firsts = {_first_word(document, s) for s in sentence_spans(document)}
+        for h in hits:
+            if h.canonical in self.vocabulary.allowed:
+                continue
+            line, col = line_col(document, h.start)
+            name = f"'{h.text}'" + (f" ({h.canonical})" if h.canonical != h.text else "")
+            if h.ambiguous and h.start in firsts:
+                # "Swift responses", "Spark joy": a capitalised English word opening a sentence.
+                findings.append(
+                    Finding(
+                        check="skill",
+                        severity="warning",
+                        line=line,
+                        column=col,
+                        text=h.text,
+                        message=f"{name} opens a sentence: check it is not a skill claim",
+                    )
+                )
+                continue
+            findings.append(
+                Finding(
+                    check="skill",
+                    severity="error",
+                    line=line,
+                    column=col,
+                    text=h.text,
+                    message=f"{name} is not a skill in the facts file",
+                )
+            )
+        return len(hits)
 
 
-__all__ = ["Checker", "stem"]
+def _first_word(text: str, sentence: Span) -> int:
+    """Offset of a sentence's first word, after bullets, heading marks and list numbers."""
+    m = _FIRST_WORD.match(text, sentence.start)
+    return m.end() if m else sentence.start

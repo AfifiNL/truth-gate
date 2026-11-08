@@ -4,12 +4,12 @@ from __future__ import annotations
 
 from decimal import Decimal
 from pathlib import Path
-from typing import Literal
+from typing import Any
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, StrictInt, field_validator, model_validator
 
-from truth_gate.numbers import Kind, Quantity, find_quantities
+from truth_gate.numbers import ISO_CODES, Kind, Quantity, find_quantities
 
 
 class FactsError(ValueError):
@@ -21,7 +21,14 @@ class ExtraNumber(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
     value: Decimal
-    unit: Literal["plain", "percent", "EUR", "USD", "GBP"] = "plain"
+    unit: str = Field(default="plain", description="plain, percent, or an ISO currency code")
+
+    @field_validator("unit")
+    @classmethod
+    def _known_unit(cls, v: str) -> str:
+        if v not in ("plain", "percent") and v not in ISO_CODES:
+            raise ValueError(f"unit must be plain, percent or an ISO currency code, not {v!r}")
+        return v
 
 
 class Fact(BaseModel):
@@ -60,8 +67,8 @@ class Facts(BaseModel):
     tone_phrases: list[str] | None = Field(
         default=None, description="Replaces the built-in tone list when given."
     )
-    min_context_overlap: int = Field(default=1, ge=1)
-    context_window: int = Field(default=8, ge=1)
+    min_context_overlap: StrictInt = Field(default=1, ge=1)
+    context_window: StrictInt = Field(default=8, ge=1)
 
     @field_validator("skills", mode="before")
     @classmethod
@@ -81,12 +88,31 @@ class Facts(BaseModel):
         return self
 
 
+class _UniqueKeyLoader(yaml.SafeLoader):
+    """SafeLoader that rejects duplicate keys: a second `blocked_phrases: []` must not
+    silently switch a check off."""
+
+    def construct_mapping(self, node: yaml.MappingNode, deep: bool = False) -> dict[Any, Any]:
+        seen: set[Any] = set()
+        for key_node, _ in node.value:
+            key = self.construct_object(key_node, deep=deep)
+            if key in seen:
+                raise yaml.constructor.ConstructorError(
+                    None, None, f"duplicate key {key!r}", key_node.start_mark
+                )
+            seen.add(key)
+        return super().construct_mapping(node, deep=deep)
+
+
 def load_facts(path: str | Path) -> Facts:
     p = Path(path)
     try:
-        raw = yaml.safe_load(p.read_text(encoding="utf-8"))
+        text = p.read_text(encoding="utf-8")
+        raw = yaml.load(text, Loader=_UniqueKeyLoader)  # noqa: S506 - a SafeLoader subclass
     except OSError as exc:
         raise FactsError(f"cannot read facts file {p}: {exc.strerror}") from None
+    except UnicodeDecodeError:
+        raise FactsError(f"facts file {p} is not valid UTF-8") from None
     except yaml.YAMLError as exc:
         raise FactsError(f"facts file {p} is not valid YAML: {exc}") from None
     return parse_facts(raw, str(p))

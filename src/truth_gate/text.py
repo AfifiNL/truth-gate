@@ -1,33 +1,96 @@
-"""Text helpers: masking of non-prose spans, sentences, content words.
+"""Text helpers: masking of non-prose spans (for the number check), sentences, content words.
 
 Masking replaces characters with spaces instead of deleting them, so every offset found later
-still points at the same line and column of the original document.
+still points at the same line and column of the original document. Every pattern here runs in
+linear time; unclosed fences and comments are left unmasked (their numbers are checked).
 """
 
 from __future__ import annotations
 
 import re
+from bisect import bisect_right
 from dataclasses import dataclass
 
-# Spans that are not prose claims: fenced code, inline code, URLs, link targets, HTML comments,
-# and ordered-list markers ("1. ", "2) ") at the start of a line.
-_MASKS = [
-    re.compile(r"```.*?```", re.S),
-    re.compile(r"~~~.*?~~~", re.S),
-    re.compile(r"<!--.*?-->", re.S),
-    re.compile(r"`[^`\n]+`"),
-    re.compile(r"\]\([^)\s]*\)"),
-    re.compile(r"\bhttps?://\S+|\bwww\.\S+"),
-    re.compile(r"(?m)^[ \t]*\d{1,3}[.)](?=[ \t])"),
-]
+_FENCE_OPEN = re.compile(r"[ ]{0,3}(`{3,}|~{3,})")
+_INLINE_CODE = re.compile(r"`[^`\n]+`")
+_LINK_TARGET = re.compile(r"\]\([^()\s\]]*\)")
+_URL = re.compile(r"\bhttps?://\S+|\bwww\.\S+")
+_ORDERED = re.compile(r"[ \t]*(\d{1,9})[.)](?=[ \t])")
+_BULLET = re.compile(r"[ \t]*[-*+](?=[ \t])")
+
+
+def _lines(text: str) -> list[tuple[int, str]]:
+    out: list[tuple[int, str]] = []
+    pos = 0
+    for line in text.split("\n"):
+        out.append((pos, line))
+        pos += len(line) + 1
+    return out
 
 
 def mask(text: str) -> str:
-    """Blank out spans that carry no claims, keeping every offset unchanged."""
-    out = text
-    for rx in _MASKS:
-        out = rx.sub(lambda m: re.sub(r"[^\n]", " ", m.group(0)), out)
-    return out
+    """Blank out spans that carry no number claims, keeping every offset unchanged.
+
+    Masked: fenced code blocks (``` and ~~~), HTML comments, inline code, link targets, URLs,
+    and ordered-list markers. A line starting "40. " is a list marker only where a Markdown
+    list can start (after a blank line, inside a list, or when the number is 1); otherwise it is
+    a wrapped sentence and its number is checked.
+    """
+    chars = list(text)
+
+    def blank(a: int, b: int) -> None:
+        for i in range(a, b):
+            if chars[i] != "\n":
+                chars[i] = " "
+
+    lines = _lines(text)
+    # 1. Fenced code: one pass. An unclosed fence stops fence handling: the rest stays prose.
+    i = 0
+    while i < len(lines):
+        m = _FENCE_OPEN.match(lines[i][1])
+        if not m:
+            i += 1
+            continue
+        fence = m.group(1)
+        closer = re.compile(r"[ ]{0,3}" + re.escape(fence[0]) + "{" + str(len(fence)) + r",}\s*$")
+        j = next((k for k in range(i + 1, len(lines)) if closer.match(lines[k][1])), None)
+        if j is None:
+            break
+        blank(lines[i][0], lines[j][0] + len(lines[j][1]))
+        i = j + 1
+    # 2. HTML comments, found with str.find (linear); an unclosed comment is not masked.
+    work = "".join(chars)
+    pos = 0
+    while (a := work.find("<!--", pos)) != -1:
+        b = work.find("-->", a + 4)
+        if b == -1:
+            break
+        blank(a, b + 3)
+        pos = b + 3
+    # 3. Inline code, link targets, URLs.
+    work = "".join(chars)
+    for rx in (_INLINE_CODE, _LINK_TARGET, _URL):
+        for m in rx.finditer(work):
+            blank(m.start(), m.end())
+    # 4. Ordered-list markers (CommonMark: a list starts after a blank line, continues inside a
+    #    list, and may interrupt a paragraph only when it starts at 1).
+    prev_blank, in_list = True, False
+    for start, line in lines:
+        if not line.strip():
+            prev_blank = True
+            continue
+        if m := _ORDERED.match(line):
+            if prev_blank or in_list or int(m.group(1)) == 1:
+                blank(start + m.start(1), start + m.end())
+                in_list = True
+            else:
+                in_list = False
+        elif _BULLET.match(line):
+            in_list = True
+        elif not (in_list and line[:1] in (" ", "\t")):
+            in_list = False
+        prev_blank = False
+    return "".join(chars)
 
 
 STOPWORDS = frozenset(
@@ -83,23 +146,32 @@ class Span:
     end: int
 
 
-_SENTENCE_END = re.compile(r"(?<=[.!?])\s+(?=[A-Z0-9\"'(\[])|\n\s*\n|\n(?=\s*[-*+#>|])")
+_BOUNDARY = re.compile(r"\n|(?<=[.!?])[ \t]+(?=[A-Z0-9\"'(\[])")
 
 
 def sentence_spans(text: str) -> list[Span]:
-    """Rough sentence boundaries; bullet lines, headings and paragraphs end a sentence too.
+    """Sentence boundaries: sentence-ending punctuation before a capital or digit, and EVERY
+    line break (list items, headings and wrapped lines never share context across lines).
 
     A full stop inside a number ("1.5") is not followed by whitespace, so it never splits.
     """
     spans: list[Span] = []
     start = 0
-    for m in _SENTENCE_END.finditer(text):
+    for m in _BOUNDARY.finditer(text):
         if m.start() > start:
             spans.append(Span(start, m.start()))
         start = m.end()
     if start < len(text):
         spans.append(Span(start, len(text)))
     return spans
+
+
+def span_at(spans: list[Span], starts: list[int], offset: int) -> Span | None:
+    """The span containing `offset` (spans sorted, `starts` their start offsets)."""
+    i = bisect_right(starts, offset) - 1
+    if i >= 0 and spans[i].start <= offset < spans[i].end:
+        return spans[i]
+    return None
 
 
 def line_col(text: str, offset: int) -> tuple[int, int]:

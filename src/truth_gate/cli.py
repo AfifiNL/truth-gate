@@ -13,7 +13,7 @@ import json
 import sys
 from pathlib import Path
 
-from truth_gate.checker import Checker
+from truth_gate.checker import Checker, DocumentTooLarge
 from truth_gate.facts import FactsError, load_facts
 
 
@@ -24,7 +24,14 @@ def _check(args: argparse.Namespace) -> int:
     except OSError as exc:
         print(f"error: cannot read {args.document}: {exc.strerror}", file=sys.stderr)
         return 2
-    report = Checker(facts).check(document)
+    except UnicodeDecodeError:
+        print(f"error: {args.document} is not valid UTF-8", file=sys.stderr)
+        return 2
+    try:
+        report = Checker(facts).check(document)
+    except DocumentTooLarge as exc:
+        print(f"error: {args.document}: {exc}", file=sys.stderr)
+        return 2
     if args.json:
         print(json.dumps(report.model_dump(), indent=2, ensure_ascii=False))
     else:

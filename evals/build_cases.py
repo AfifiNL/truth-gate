@@ -16,15 +16,15 @@ import sys
 from pathlib import Path
 
 CLEAN = [
-    "Jordan managed a support engineering team of nine people at Riverbend Parcel Co.",
-    "From 2017 to 2021 Jordan led the support engineering team at Riverbend Parcel Co.",
+    "Jordan managed a support engineering team of nine people at ExampleParcel Co.",
+    "From 2017 to 2021 Jordan led the support engineering team at ExampleParcel Co.",
     "Cut the average first-response time on support tickets from 26 hours to 4 hours.",
     "Average first response to support tickets dropped to 4 hours, from 26.",
     "Customer satisfaction rose from 81% to 92% in 18 months.",
     "Automated 35% of incoming ticket routing using Python and Zapier.",
     "About 35% of ticket routing now runs automatically, built in Python.",
-    "Supported a product line with $3.5 million in annual revenue at Granite Peak Software.",
-    "Worked on a $3.5m-a-year product line at Granite Peak Software.",
+    "Supported a product line with $3.5 million in annual revenue at ExampleSoft Ltd.",
+    "Worked on a $3.5m-a-year product line at ExampleSoft Ltd.",
     "Completed a Scrum Master certification in 2020.",
     "BA in Economics from the University of Sampleton (2014).",
     "Wrote 60 help-centre articles, cutting repeat questions by 22%.",
@@ -34,18 +34,18 @@ CLEAN = [
 
 TARGETS: list[tuple[str, bool, str]] = [
     # (kind, hard, sentence)
-    ("clean", False, "1. Managed a support engineering team of 9 people at Riverbend Parcel Co."),
+    ("clean", False, "1. Managed a support engineering team of 9 people at ExampleParcel Co."),
     (
         "clean",
         False,
         "The routing rules are in `rules-v2.yaml`; see https://example.com/runbook/2019/7.",
     ),
-    ("clean", False, "Revenue of the product line: USD 3,500,000 a year at Granite Peak Software."),
+    ("clean", False, "Revenue of the product line: USD 3,500,000 a year at ExampleSoft Ltd."),
     ("clean", True, "Lifted CSAT to 92%, up from 81%."),
     (
         "wrong_number",
         False,
-        "Managed a support engineering team of 11 people at Riverbend Parcel Co.",
+        "Managed a support engineering team of 11 people at ExampleParcel Co.",
     ),
     ("wrong_number", False, "Cut first-response time on support tickets from 26 hours to 3 hours."),
     ("wrong_number", False, "Customer satisfaction rose from 81% to 94% in 18 months."),
@@ -76,11 +76,13 @@ TARGETS: list[tuple[str, bool, str]] = [
 def build() -> list[dict[str, object]]:
     rng = random.Random(20261108)  # noqa: S311 - a fixed shuffle, not security
     cases: list[dict[str, object]] = []
-    # Plain clean documents: three paraphrases each, every paraphrase used at least once.
+    # Plain clean documents: overlapping windows of three shuffled paraphrases, stepping by two
+    # and wrapping around, so every paraphrase appears in at least one clean document.
     order = CLEAN[:]
     rng.shuffle(order)
-    for i in range(0, len(order) - 2, 2):
-        cases.append({"kind": "clean", "hard": False, "doc": "\n".join(order[i : i + 3])})
+    for i in range(0, len(order), 2):
+        window = [order[(i + k) % len(order)] for k in range(3)]
+        cases.append({"kind": "clean", "hard": False, "doc": "\n".join(window)})
     for kind, hard, sentence in TARGETS:
         filler = rng.sample(CLEAN, 2)
         doc = "\n".join([filler[0], sentence, filler[1]])

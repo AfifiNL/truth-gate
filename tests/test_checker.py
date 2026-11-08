@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from pathlib import Path
+import pytest
 
 from conftest import ROOT, fact, make_checker
-from truth_gate.checker import Checker
+from truth_gate.checker import MAX_DOCUMENT_CHARS, Checker, DocumentTooLarge
 from truth_gate.facts import Facts
 
 
@@ -113,8 +113,73 @@ def test_tone_phrases_warn_but_never_fail() -> None:
     assert custom.check("I delve into seamless synergies.").warnings == 1
 
 
-def test_findings_point_at_line_and_column(tmp_path: Path) -> None:
+def test_findings_point_at_line_and_column() -> None:
     c = make_checker([fact("t", "Led a team of 12 engineers.")])
     report = c.check("# Title\n\nRobin led 13 engineers.")
     f = report.findings[0]
     assert (f.line, f.column, f.text) == (3, 11, "13")
+
+
+def test_context_does_not_leak_across_lines_or_list_items() -> None:
+    c = make_checker([fact("t", "Led a team of 12 engineers.")])
+    assert not c.check("1. Hired engineers\n2. Owns 12 cats").passed
+    assert not c.check("Hired engineers\nOwns 12 cats").passed
+    assert c.check("1. Hired 12 engineers").passed
+
+
+def test_a_wrapped_line_starting_with_a_number_is_checked() -> None:
+    c = make_checker([fact("t", "Led a team of 12 engineers.")])
+    report = c.check("Robin's team grew from 12 engineers to\n40. That was the plan.")
+    assert [f.text for f in report.findings] == ["40"]
+
+
+def test_currency_and_scale_mismatches_fail() -> None:
+    c = make_checker([fact("b", "Managed a platform budget of €1.2 million.")])
+    assert c.check("Managed a platform budget of €1.2m.").passed
+    for wrong in ("CHF 1.2 million", "US$1.2m", "1.2 million CAD", "€1.2 billion"):
+        assert not c.check(f"Managed a platform budget of {wrong}.").passed, wrong
+    users = make_checker([fact("u", "Served 3 regional user groups.")])
+    assert not users.check("Served three million users in regional groups.").passed
+
+
+def test_glued_units_need_the_same_unit_in_a_fact() -> None:
+    c = make_checker([fact("p", "Made the report job 50x faster with 40GB less memory.")])
+    assert c.check("The report job became 50x faster.").passed
+    assert not c.check("The report job became 40x faster.").passed
+    assert not c.check("The report job became 50ms faster.").passed
+
+
+def test_skills_and_blocked_phrases_are_checked_inside_code_spans() -> None:
+    c = make_checker([fact("f", "Wrote code.")], blocked_phrases=["guaranteed results"])
+    report = c.check("We deliver `guaranteed results` with `Kafka`.")
+    assert {(f.check, f.text) for f in report.findings} == {
+        ("blocked", "guaranteed results"),
+        ("skill", "Kafka"),
+    }
+
+
+def test_ambiguous_words_opening_a_sentence_only_warn() -> None:
+    c = make_checker([fact("f", "Wrote code.")])
+    for text in ("Swift responses matter.", "Spark joy in the team.", "- Go for it."):
+        report = c.check(text)
+        assert report.passed, text
+        assert [f.severity for f in report.findings] == ["warning"], text
+    report = c.check("Our go-to-market plan. Go-to-market matters.")
+    assert [f for f in report.findings if f.check == "skill"] == []
+    assert not c.check("We built it in Swift.").passed
+
+
+def test_document_size_is_capped() -> None:
+    c = make_checker([fact("f", "Wrote code.")])
+    c.check("x" * MAX_DOCUMENT_CHARS)
+    with pytest.raises(DocumentTooLarge, match="limit"):
+        c.check("x" * (MAX_DOCUMENT_CHARS + 1))
+
+
+def test_worst_case_document_at_the_cap_is_fast() -> None:
+    import time
+
+    c = make_checker([fact("t", "Led a team of 12 engineers.")])
+    started = time.perf_counter()
+    c.check(("12 engineers " * 20_000)[:MAX_DOCUMENT_CHARS])
+    assert time.perf_counter() - started < 10.0

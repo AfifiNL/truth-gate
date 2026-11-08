@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 import subprocess
 import sys
-from pathlib import Path
 
 import pytest
 
@@ -30,11 +29,9 @@ def test_every_non_hard_case_is_handled_and_hard_cases_are_reported() -> None:
 
 
 @pytest.mark.parametrize("sabotage", ["ignore_numbers", "ignore_context", "ignore_skills"])
-def test_gate_fails_when_a_check_is_broken(
-    sabotage: str, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
+def test_gate_fails_when_a_check_is_broken(sabotage: str, monkeypatch: pytest.MonkeyPatch) -> None:
     if sabotage == "ignore_numbers":
-        monkeypatch.setattr(Checker, "_check_number", lambda *a, **k: None)
+        monkeypatch.setattr(Checker, "_numbers", lambda *a, **k: 0)
     elif sabotage == "ignore_context":
         monkeypatch.setattr(
             Checker, "_window", lambda self, *a: set().union(*self._fact_words.values())

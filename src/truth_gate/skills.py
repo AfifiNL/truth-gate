@@ -15,6 +15,11 @@ class Term:
     surface: str
     case_sensitive: bool
 
+    @property
+    def ambiguous(self) -> bool:
+        """A case-sensitive, title-case word that is also an English word ("Swift", "Spark")."""
+        return self.case_sensitive and self.surface[:1].isupper() and self.surface[1:].islower()
+
 
 @dataclass(frozen=True)
 class TermHit:
@@ -22,6 +27,7 @@ class TermHit:
     start: int
     end: int
     text: str
+    ambiguous: bool = False
 
 
 def _read_data(name: str) -> list[str]:
@@ -43,13 +49,12 @@ def builtin_tone() -> list[str]:
     return _read_data("tone.txt")
 
 
-def _pattern(surface: str, case_sensitive: bool) -> re.Pattern[str]:
-    # Word-ish boundaries that also work for "C++", "C#", ".NET" and "Node.js".
-    body = re.escape(surface).replace(r"\ ", r"\s+")
-    return re.compile(
-        r"(?<![\w+#&])" + body + r"(?![\w+#&]|\.\w)",
-        0 if case_sensitive else re.I,
-    )
+def _pattern(term: Term) -> re.Pattern[str]:
+    # Word-ish boundaries that also work for "C++", "C#", ".NET" and "Node.js". An ambiguous
+    # word followed by "-to" ("Go-to-market") is the English word, not the tool.
+    body = re.escape(term.surface).replace(r"\ ", r"\s+")
+    tail = r"(?![\w+#&]|\.\w)" + (r"(?!-to\b)" if term.ambiguous else "")
+    return re.compile(r"(?<![\w+#&])" + body + tail, 0 if term.case_sensitive else re.I)
 
 
 class Vocabulary:
@@ -78,7 +83,7 @@ class Vocabulary:
         # Longest surface first, so "Google Cloud Platform" wins over "Google Cloud".
         uniq = {(t.surface, t.case_sensitive): t for t in terms}
         self.terms = sorted(uniq.values(), key=lambda t: len(t.surface), reverse=True)
-        self._patterns = [(t, _pattern(t.surface, t.case_sensitive)) for t in self.terms]
+        self._patterns = [(t, _pattern(t)) for t in self.terms]
         # Terms named in the facts' own text are true statements, so they are allowed too.
         for fact in facts.facts:
             for hit in self.find(fact.text):
@@ -93,7 +98,7 @@ class Vocabulary:
                     continue
                 for i in range(m.start(), m.end()):
                     taken[i] = True
-                hits.append(TermHit(term.canonical, m.start(), m.end(), m.group(0)))
+                hits.append(TermHit(term.canonical, m.start(), m.end(), m.group(0), term.ambiguous))
         hits.sort(key=lambda h: h.start)
         return hits
 
