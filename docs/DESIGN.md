@@ -34,6 +34,20 @@ threshold cannot separate them without failing true paraphrases. One word is the
 `min_context_overlap` is exposed so a stricter team can trade false alarms for misses, and the
 eval reports the default's misses.
 
+**Moved numbers are judged per clause.** The overlap rule alone passes a true number attached
+to another claim when the two claims share a topic word ("26 hours to 9 hours" shares "support"
+with a fact about a team of 9). The added rule compares facts: if a fact that does *not*
+contain the number matches the number's clause by `misplaced_margin` (2) or more words than the
+best fact that does, the number is flagged as moved. It uses the clause, not the sentence,
+because one sentence often joins two facts ("Holding a BA ... in 2014, Jordan wrote 60
+articles ..."): measured on the dev half of the model-written set, the sentence-level version
+caught the moved number but also failed that true sentence; the clause-level version caught
+the moved number with no false alarm. This rule came from looking at dev documents, which is
+why the held-out half was run only once, afterwards, and why its result is reported separately.
+On held-out it changed nothing (the overlap rule already caught the three moved numbers there),
+and it changed nothing on the hand-built set; the two hand-built hard cases still pass because
+no other fact matches them better.
+
 **What "content word" means.** Stopwords, units ("years", "months", "percent"), numbers, words
 under three letters and the subject's name are removed, then a small stemmer folds plurals and
 a few verb endings. Units are removed on purpose: "12 years" and "12 months" must share a topic
@@ -104,9 +118,25 @@ in dev at 0.167, under the 0.20 ceiling; in the first corpus it sat in test at e
 The ceiling was not changed, and it is coarse: a second false alarm in either split fails the
 gate.
 
-## Not done (v0.1)
+## The model-written set (evals/llm)
 
-- No LLM-generated eval documents: the corpus measures regressions, not real-world accuracy.
+Protocol, in order: (1) the request list, its dev/held-out split and the prompt were written
+and fixed; (2) 48 documents were generated with one model call each (plus one retry after a
+rate limit: 49 calls); (3) every document was read and labelled, with a reason, before the
+checker was run on any of them; documents that did not follow their instruction were labelled
+`dropped`, never edited; (4) the checker was run on dev, one rule was added (above), and the
+checker was frozen; (5) held-out was run once. Labels are limited to what truth-gate checks
+(numbers, skills, blocked phrases); relations the model added are recorded as a finding, not
+as errors, because the checker does not claim to check them.
+
+The gate for this set is regression-only (`evals/llm/gate.json` has no floors) because any
+floor would have been chosen after seeing the numbers. Vocabulary was not extended for the
+"Excel" misses, so the held-out score is not inflated by a fix seen on dev.
+
+## Not done
+
+- The model-written set is one model, one prompt, one run, and errors the model was asked to
+  make; it does not measure how often a model errs unprompted.
 - No dates as a first-class kind (ISO dates are three numbers).
 - No per-fact allowed contexts or synonyms beyond what the fact sentence says.
 - English only.

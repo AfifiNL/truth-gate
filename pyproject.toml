@@ -26,6 +26,9 @@ dev = [
     "mypy>=1.13",
     "types-pyyaml>=6.0.12.20261103",
 ]
+live = [
+    "google-genai>=3.0.0",
+]
 
 [build-system]
 requires = ["hatchling>=1.27"]

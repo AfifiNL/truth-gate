@@ -15,7 +15,7 @@ masking exists only so that numbers in code or links are not read as claims.
 from __future__ import annotations
 
 import re
-from bisect import bisect_left
+from bisect import bisect_left, bisect_right
 
 from truth_gate.facts import Facts
 from truth_gate.numbers import Quantity, same_quantity, scan
@@ -25,6 +25,7 @@ from truth_gate.text import Span, content_words, line_col, mask, sentence_spans,
 
 MAX_DOCUMENT_CHARS = 200_000
 _WORD = re.compile(r"[A-Za-z][A-Za-z'-]*")
+_CLAUSE_BREAK = re.compile(r"[,;:](?=\s)|[()]|\s[-\u2013\u2014]\s")
 _FIRST_WORD = re.compile(r"[\s\-*+#>|]*(?:\d{1,9}[.)]\s+)?")
 
 
@@ -92,6 +93,8 @@ class Checker:
         words = list(_WORD.finditer(text))
         word_starts = [w.start() for w in words]
         quantities, _skipped = scan(text)
+        found = list(_CLAUSE_BREAK.finditer(text))
+        breaks = ([m.start() for m in found], [m.end() for m in found])
         for q in quantities:
             line, col = line_col(document, q.start)
             sentence = span_at(sentences, starts, q.start) or Span(q.start, q.end)
@@ -119,6 +122,41 @@ class Checker:
                 shared = window & self._fact_words[f.id]
                 if not best_id or len(shared) > len(best_shared):
                     best_id, best_shared = f.id, shared
+            # Misplaced number: the words around it match another fact (one that does not
+            # contain this number) clearly better than any fact that does. "26 hours to 9 hours"
+            # shares "support" with the 9-person team fact, but five words with the
+            # response-time fact.
+            # The comparison uses the number's clause (bounded by , ; : brackets or a spaced
+            # dash), because one sentence often joins two facts: "Holding a BA ... in 2014,
+            # Jordan wrote 60 help-centre articles ..." must not move 2014 to the articles.
+            clause = self._clause_words(breaks, words, word_starts, sentence, q)
+            own = max(len(clause & self._fact_words[f.id]) for f in candidates)
+            other_id = ""
+            other_shared: set[str] = set()
+            for f in self.facts.facts:
+                if f in candidates:
+                    continue
+                shared = clause & self._fact_words[f.id]
+                if len(shared) > len(other_shared):
+                    other_id, other_shared = f.id, shared
+            margin = self.facts.misplaced_margin
+            if margin and len(other_shared) >= own + margin:
+                findings.append(
+                    Finding(
+                        check="number",
+                        severity="error",
+                        line=line,
+                        column=col,
+                        text=q.text,
+                        message=(
+                            f"{q.label()} comes from fact '{best_id}', but the words around it "
+                            f"match fact '{other_id}' ({', '.join(sorted(other_shared))}) "
+                            "better: the number looks moved from another claim"
+                        ),
+                        fact_ids=[f.id for f in candidates],
+                    )
+                )
+                continue
             if len(best_shared) >= self.facts.min_context_overlap:
                 traces.append(
                     Trace(line=line, text=q.text, fact_id=best_id, shared_words=sorted(best_shared))
@@ -139,6 +177,26 @@ class Checker:
                 )
             )
         return len(quantities)
+
+    def _clause_words(
+        self,
+        breaks: tuple[list[int], list[int]],
+        words: list[re.Match[str]],
+        word_starts: list[int],
+        sentence: Span,
+        q: Quantity,
+    ) -> set[str]:
+        """Content words of the clause around q (within its sentence and window).
+
+        `breaks` holds the start and end offsets of every clause break in the text, found once
+        per document, so each lookup is a binary search.
+        """
+        starts, ends = breaks
+        i = bisect_right(ends, q.start) - 1
+        start = max(sentence.start, ends[i]) if i >= 0 else sentence.start
+        j = bisect_left(starts, q.end)
+        end = min(sentence.end, starts[j]) if j < len(starts) else sentence.end
+        return self._window(words, word_starts, Span(start, end), q)
 
     def _window(
         self, words: list[re.Match[str]], word_starts: list[int], sentence: Span, q: Quantity

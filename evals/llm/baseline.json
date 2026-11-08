@@ -1,0 +1,29 @@
+{
+  "all": {
+    "cases": 46,
+    "catch_rate": 0.909,
+    "false_alarm_rate": 0.0,
+    "catch_blocked_phrase": 1.0,
+    "catch_invented_skill": 0.667,
+    "catch_wrong_context": 1.0,
+    "catch_wrong_number": 1.0
+  },
+  "dev": {
+    "cases": 22,
+    "catch_rate": 0.9,
+    "false_alarm_rate": 0.0,
+    "catch_blocked_phrase": 1.0,
+    "catch_invented_skill": 0.667,
+    "catch_wrong_context": 1.0,
+    "catch_wrong_number": 1.0
+  },
+  "heldout": {
+    "cases": 24,
+    "catch_rate": 0.917,
+    "false_alarm_rate": 0.0,
+    "catch_blocked_phrase": 1.0,
+    "catch_invented_skill": 0.667,
+    "catch_wrong_context": 1.0,
+    "catch_wrong_number": 1.0
+  }
+}

@@ -74,7 +74,8 @@ skills:
     aliases: [Postgres]
 blocked_phrases: [guaranteed results, world-class]
 # optional: vocabulary (extra terms to recognise), tone_phrases (replaces the built-in list),
-# min_context_overlap (default 1), context_window (default 8 words)
+# min_context_overlap (default 1), context_window (default 8 words),
+# misplaced_margin (default 2; 0 switches the moved-number rule off)
 ```
 
 Numbers are read from each fact's text, so a fact is written once, in plain words. Unknown keys
@@ -102,7 +103,13 @@ to 2m" is two separate numbers). A document number passes when:
    number, **in the same sentence and on the same line**, also appear in that fact's text.
    Every line break ends a sentence, so list items and wrapped lines never lend each other
    context. Content words are stemmed lightly ("conferences" = "conference"), and stopwords,
-   units ("years", "months"), numbers and the subject's name are ignored.
+   units ("years", "months"), numbers and the subject's name are ignored; and
+3. the number's own **clause** (bounded by `, ; :`, brackets or a spaced dash) does not match a
+   fact *without* this number by `misplaced_margin` (2) or more words than it matches the best
+   fact *with* it. This catches a true number moved to another claim when the two claims share
+   a topic word: "reduced first-response time for support tickets from 26 hours to 9 hours"
+   shares "support" with the fact about a team of 9, but five words with the response-time
+   fact.
 
 **Not checked** (each is a place where a false figure passes, so the list is complete):
 
@@ -195,7 +202,59 @@ or ignores skills fails it.
 
 **What these numbers are not.** The corpus was written by the same author as the checker, from
 the same rules; it is a regression gate and a description of behaviour, not an accuracy
-estimate for real AI-written documents.
+estimate for real AI-written documents. The second set below is closer to that.
+
+### Model-written set
+
+`evals/llm/documents.jsonl` holds 48 short documents written by `gemini-3.6-flash` (Vertex AI,
+thinking level low, 2026-11-08) from the same synthetic facts: 16 each of a speaker bio, a
+service blurb and an annual-report paragraph. Half were asked to use only the facts; the other
+half were asked to introduce exactly one error of a named type (6 each: wrong number, a number
+moved to another claim, an invented tool, a blocked phrase) and to say what they changed. The
+prompt sets everything in a fictional world; no real company, place or person appears (a test
+checks every capitalised word). `evals/llm/generate.py` regenerates the set and costs about 48
+model calls; it refuses to make any call unless `TG_MAX_LIVE_CALLS` is set.
+
+Every document was **labelled by reading it before the checker was run on any of them**
+(`evals/llm/labels.jsonl`, one reason per document). Generated text is never edited:
+`tests/test_llm_eval.py` checks each document's hash and, without using truth-gate's parser,
+that each label's evidence holds (an injected number is absent from the facts, an invented tool
+is absent from the facts file, a clean document uses no digit string the facts lack).
+
+What the model did:
+
+- **Injected errors: 22 of 24 followed the instruction.** Wrong number 6/6, invented tool 6/6,
+  blocked phrase 6/6, moved number 4/6. One "moved" number became "4 million" hours (a changed
+  value), and one swapped two numbers instead of moving one; both are dropped from the scores.
+  For the blocked phrase it chose "rockstar" all six times; the invented tools were Tableau (2),
+  Excel (2), Salesforce and Docker.
+- **Clean documents: 24 of 24 used only figures, tools and phrases from the facts.** But all 24
+  also linked facts with a relation the facts do not state: a time ("during this period"), a
+  cause ("these improvements raised satisfaction") or an employer ("at ExampleParcel Co,
+  Jordan raised the score"). truth-gate does not check relations, so these pass.
+
+Scores (46 scored documents; a split was fixed before generation, `heldout` was run once after
+the checker was frozen):
+
+| scope | documents | catch rate | false-alarm rate | wrong number | moved number | invented tool | blocked phrase |
+|---|---|---|---|---|---|---|---|
+| all | 46 | 0.909 | 0.000 | 1.000 | 1.000 | 0.667 | 1.000 |
+| dev | 22 | 0.900 | 0.000 | 1.000 | 1.000 | 0.667 | 1.000 |
+| heldout | 24 | 0.917 | 0.000 | 1.000 | 1.000 | 0.667 | 1.000 |
+
+Both misses are "Excel", which is not in the built-in vocabulary ("excel" is also an English
+verb). It was deliberately not added after the dev run, because the held-out half uses it too.
+One checker change was made after looking at `dev`: rule 3 above (moved numbers), which caught
+one dev document the overlap rule passed. On `heldout`, the overlap rule alone already caught
+all three moved numbers, so the new rule changed nothing there, and it added no false alarm on
+either set. Its evidence is one dev document plus "no harm" on the held-out half and the
+hand-built set, not a measured improvement. `make eval` gates this set on its baseline only:
+the results were seen after the fact, so no floor was chosen from them.
+
+**Limits of this set:** one model, one prompt template, one run, 46 scored documents from a
+single facts file; the errors are ones the model was asked to make, which are easier than the
+ones it makes by accident. It shows the checks work on model-written prose, not how often a
+model errs unprompted.
 
 ## Design in short
 
@@ -220,12 +279,16 @@ estimate for real AI-written documents.
   Canadian dollars (a false alarm, never a false pass). Currency words outside the built-in list
   are not recognised: such an amount is read as a plain number, which may match money in any
   currency.
+- Relations between facts are not checked. A model writing from facts linked them with a time,
+  cause or employer the facts do not state in all 24 clean documents of the model-written set
+  ("these improvements raised satisfaction"); every one passes.
 - Meaning is not understood: a number used with the right topic words but the wrong meaning
   passes (see the hard cases). The checker narrows what a reviewer must read; it does not
   replace the review.
 - Rounding and qualifiers are not interpreted: "nearly 20%" against a fact of 18% fails.
-- Only recognised skill terms are checked; a tool missing from the vocabulary is not caught
-  unless added to `vocabulary`. Case-sensitive short terms are missed in lower case.
+- Only recognised skill terms are checked; a tool missing from the vocabulary (such as "Excel",
+  missed twice in the model-written set) is not caught unless added to `vocabulary`.
+  Case-sensitive short terms are missed in lower case.
 - `5m` is read as 5 million; a document about metres needs a different unit.
 - Version numbers with one dot (`Python 3.12`) are numbers and need a fact.
 

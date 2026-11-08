@@ -69,6 +69,12 @@ class Facts(BaseModel):
     )
     min_context_overlap: StrictInt = Field(default=1, ge=1)
     context_window: StrictInt = Field(default=8, ge=1)
+    misplaced_margin: StrictInt = Field(
+        default=2,
+        ge=0,
+        description="Flag a number when a fact without it shares this many more context words "
+        "than the best fact with it (0 switches the rule off).",
+    )
 
     @field_validator("skills", mode="before")
     @classmethod

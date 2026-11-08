@@ -183,3 +183,26 @@ def test_worst_case_document_at_the_cap_is_fast() -> None:
     started = time.perf_counter()
     c.check(("12 engineers " * 20_000)[:MAX_DOCUMENT_CHARS])
     assert time.perf_counter() - started < 10.0
+
+
+def test_a_number_moved_from_another_fact_is_flagged() -> None:
+    facts = [
+        fact("team", "Managed a support engineering team of 9 people."),
+        fact("speed", "Reduced the average first-response time for support tickets to 4 hours."),
+    ]
+    c = make_checker(facts)
+    moved = c.check("Reduced the average first-response time for support tickets to 9 hours.")
+    assert not moved.passed
+    assert "looks moved" in moved.findings[0].message
+    assert moved.findings[0].fact_ids == ["team"]
+    # Two facts joined in one sentence: each number is judged within its own clause.
+    joined = (
+        "Managed a support engineering team of 9 people, "
+        "and reduced first-response time to 4 hours."
+    )
+    assert c.check(joined).passed
+    # misplaced_margin: 0 switches the rule off (the shared word "support" then suffices).
+    off = make_checker(facts, misplaced_margin=0)
+    assert off.check(
+        "Reduced the average first-response time for support tickets to 9 hours."
+    ).passed

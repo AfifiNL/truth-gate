@@ -1,7 +1,8 @@
 # Everything here runs offline and costs nothing. `make check` is exactly what CI runs.
 UV ?= uv
+TG_MAX_LIVE_CALLS ?= 0
 
-.PHONY: help install lint fmt typecheck test eval eval-baseline cases demo check
+.PHONY: help install lint fmt typecheck test eval eval-baseline cases llm-set demo check
 
 help:            ## list targets
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | sed 's/:.*## /\t/'
@@ -31,6 +32,9 @@ eval-baseline:   ## re-record evals/baseline.json (review the diff before commit
 
 cases:           ## rebuild evals/cases.jsonl from evals/build_cases.py
 	$(UV) run python evals/build_cases.py
+
+llm-set:         ## regenerate evals/llm with a live model (set TG_MAX_LIVE_CALLS=48; costs money)
+	TG_MAX_LIVE_CALLS=$(TG_MAX_LIVE_CALLS) $(UV) run --group live python evals/llm/generate.py
 
 demo:            ## check the two example documents
 	-$(UV) run truth-gate check examples/pass.md --facts examples/facts.yaml
