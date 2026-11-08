@@ -1,0 +1,32 @@
+# Synthetic facts about a fictional person. Every name, number and source here is made up.
+subject: Robin Example
+facts:
+  - id: team-lead
+    text: Led a team of 12 engineers at Lakeside Freight Ltd from 2019 to 2023.
+    source: employment reference letter, Lakeside Freight Ltd, 2023
+  - id: cloud-costs
+    text: Cut monthly cloud costs by 18% by moving batch jobs to spot instances in 2022.
+    source: internal cost report Q4 2022
+  - id: migration
+    text: Migrated 40 services from MySQL to PostgreSQL without unplanned downtime.
+    source: project close-out document, 2021
+  - id: budget
+    text: Managed a platform budget of €1.2 million per year.
+    source: budget approval e-mail, 2022
+  - id: degree
+    text: MSc in Computer Science, University of Exampletown, 2016.
+    source: diploma
+  - id: talks
+    text: Gave 3 conference talks about on-call practices for small engineering teams.
+    source: conference programmes 2020-2022
+skills:
+  - Python
+  - name: PostgreSQL
+    aliases: [Postgres]
+  - Kubernetes
+  - Terraform
+  - Grafana
+blocked_phrases:
+  - guaranteed results
+  - world-class
+  - 10x engineer

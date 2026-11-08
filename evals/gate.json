@@ -1,0 +1,6 @@
+{
+  "_comment": "Written before the test split was first run. Deterministic checker: tolerance 0.",
+  "min_catch_rate": 0.75,
+  "max_false_alarm_rate": 0.2,
+  "tolerance": 0.0
+}

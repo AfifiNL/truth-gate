@@ -1,0 +1,113 @@
+# Built-in skill and tool vocabulary. One entry per line: `Canonical | alias | alias`.
+# A leading `=` makes the entry case-sensitive (short or ambiguous words such as Go or R).
+# Matching is whole-term; the longest term wins where terms overlap.
+Python
+Java
+JavaScript | =JS
+TypeScript
+=Go | Golang
+=Rust
+C++
+C#
+Kotlin
+=Swift
+Ruby
+PHP
+Scala
+=R
+SQL
+=Bash
+PowerShell
+HTML
+CSS
+=React | React.js
+Vue | Vue.js
+=Angular
+Svelte
+Next.js
+Node.js | NodeJS
+Django
+=Flask
+FastAPI
+Spring Boot
+Ruby on Rails
+Laravel
+.NET
+PostgreSQL | Postgres
+MySQL
+SQLite
+MongoDB
+Redis
+Elasticsearch
+OpenSearch
+Cassandra
+DynamoDB
+=Snowflake
+BigQuery
+Redshift
+Databricks
+ClickHouse
+Kafka | Apache Kafka
+RabbitMQ
+=Spark | Apache Spark
+=Airflow | Apache Airflow
+dbt
+pandas
+NumPy
+Docker
+Kubernetes | K8s
+=Helm
+Terraform
+Ansible
+Pulumi
+Jenkins
+GitHub Actions
+GitLab CI
+CircleCI
+Argo CD | ArgoCD
+AWS | Amazon Web Services
+Azure | Microsoft Azure
+Google Cloud | GCP | Google Cloud Platform
+Vertex AI
+SageMaker
+Amazon Bedrock
+EC2
+CloudFormation
+Cloud Run
+Linux
+Nginx
+PyTorch
+TensorFlow
+scikit-learn | sklearn
+Keras
+Hugging Face
+LangChain
+LangGraph
+LlamaIndex
+pgvector
+Pinecone
+Weaviate
+Qdrant
+Prometheus
+Grafana
+OpenTelemetry
+Datadog
+=Sentry
+Figma
+Jira
+Confluence
+Salesforce
+HubSpot
+=SAP
+Tableau
+Power BI
+Looker
+n8n
+Zapier
+GraphQL
+gRPC
+OAuth
+Scrum
+=PMP
+=CISSP
+Six Sigma

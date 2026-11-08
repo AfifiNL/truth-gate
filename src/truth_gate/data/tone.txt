@@ -1,0 +1,31 @@
+# Built-in machine-tone phrases (warnings, never failures). Case-insensitive, whole phrase.
+delve
+delving
+tapestry
+in today's fast-paced world
+in today's digital age
+ever-evolving landscape
+navigate the complexities
+unlock the power
+unleash
+game-changer
+game changer
+cutting-edge
+seamless
+seamlessly
+synergy
+synergies
+leverage synergies
+results-driven
+passionate about
+I am excited to
+I am thrilled
+testament to
+it is worth noting
+it's worth noting
+embark on a journey
+a proven track record
+dynamic team
+go-to
+robust and scalable
+at the forefront
