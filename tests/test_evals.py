@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import subprocess
 import sys
+from pathlib import Path
 
 import pytest
 
@@ -44,3 +45,40 @@ def test_gate_fails_when_a_check_is_broken(sabotage: str, monkeypatch: pytest.Mo
     floors = json.loads((EVALS / "gate.json").read_text(encoding="utf-8"))
     baseline = json.loads((EVALS / "baseline.json").read_text(encoding="utf-8"))
     assert evals.gate(scores, floors, baseline)
+
+
+def test_gate_fails_on_changed_case_count_and_lost_cases() -> None:
+    scores, rows = evals.evaluate(EVALS)
+    floors = json.loads((EVALS / "gate.json").read_text(encoding="utf-8"))
+    baseline = json.loads((EVALS / "baseline.json").read_text(encoding="utf-8"))
+    assert evals.gate(scores, floors, baseline, rows) == []
+    fewer = {k: dict(v) for k, v in scores.items()}
+    fewer["all"]["cases"] -= 1
+    assert any("cases changed" in p for p in evals.gate(fewer, floors, baseline, rows))
+    # Same metrics, but a different document is now handled wrongly: still a failure.
+    caught = next(r for r in rows if r["ok"] and r["kind"] != "clean")
+    swapped = [dict(r, ok=not r["ok"]) if r is caught else r for r in rows]
+    assert any(caught["id"] in p for p in evals.gate(scores, floors, baseline, swapped))
+    unknown = [*rows, dict(rows[0], id="new-case")]
+    assert any("new-case" in p for p in evals.gate(scores, floors, baseline, unknown))
+
+
+def test_split_dev_never_scores_the_held_out_half(tmp_path: Path) -> None:
+    import shutil
+
+    _, rows = evals.evaluate_llm(EVALS, ("dev",))
+    assert rows
+    assert {r["split"] for r in rows} == {"dev"}
+    # A dev-only baseline update leaves the held-out scope and outcomes untouched.
+    root = tmp_path / "evals"
+    shutil.copytree(EVALS, root)
+    before = json.loads((root / "llm" / "baseline.json").read_text(encoding="utf-8"))
+    assert evals.run_eval(root, "dev", update_baseline=True, out=None) == 0
+    after = json.loads((root / "llm" / "baseline.json").read_text(encoding="utf-8"))
+    assert after["heldout"] == before["heldout"]
+    held = {
+        k: v
+        for k, v in before["outcomes"].items()
+        if k in {r["id"] for r in evals.evaluate_llm(root, ("heldout",))[1]}
+    }
+    assert {k: after["outcomes"][k] for k in held} == held

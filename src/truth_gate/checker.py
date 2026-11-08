@@ -16,6 +16,9 @@ from __future__ import annotations
 
 import re
 from bisect import bisect_left, bisect_right
+from collections import defaultdict
+from dataclasses import dataclass
+from decimal import Decimal
 
 from truth_gate.facts import Facts
 from truth_gate.numbers import Quantity, same_quantity, scan
@@ -25,8 +28,18 @@ from truth_gate.text import Span, content_words, line_col, mask, sentence_spans,
 
 MAX_DOCUMENT_CHARS = 200_000
 _WORD = re.compile(r"[A-Za-z][A-Za-z'-]*")
-_CLAUSE_BREAK = re.compile(r"[,;:](?=\s)|[()]|\s[-\u2013\u2014]\s")
+_CLAUSE_BREAK = re.compile(
+    r"[,;:](?=\s)|[()]|\s[-\u2013\u2014]\s|\s(?:and|but|while|whereas)\s", re.I
+)
 _FIRST_WORD = re.compile(r"[\s\-*+#>|]*(?:\d{1,9}[.)]\s+)?")
+
+
+@dataclass(frozen=True)
+class _Decision:
+    best_id: str
+    best_words: list[str]
+    moved_from: str
+    moved_words: tuple[str, ...]
 
 
 class DocumentTooLarge(ValueError):
@@ -41,6 +54,17 @@ class Checker:
         self._ignore = content_words(facts.subject)
         self._fact_words = {f.id: content_words(f.text) - self._ignore for f in facts.facts}
         self._fact_qty = {f.id: f.quantities() for f in facts.facts}
+        self._order = {f.id: i for i, f in enumerate(facts.facts)}
+        # Indexes so the cost per number does not grow with every fact: value -> facts holding
+        # that value, word -> facts containing that word.
+        self._by_value: dict[Decimal, list[tuple[str, Quantity]]] = defaultdict(list)
+        for f in facts.facts:
+            for fq in self._fact_qty[f.id]:
+                self._by_value[fq.value].append((f.id, fq))
+        self._by_word: dict[str, list[str]] = defaultdict(list)
+        for f in facts.facts:
+            for w in self._fact_words[f.id]:
+                self._by_word[w].append(f.id)
         self._blocked = [(p, phrase_pattern(p)) for p in facts.blocked_phrases if p.strip()]
         tone = facts.tone_phrases if facts.tone_phrases is not None else builtin_tone()
         self._tone = [(p, phrase_pattern(p)) for p in tone if p.strip()]
@@ -95,14 +119,16 @@ class Checker:
         quantities, _skipped = scan(text)
         found = list(_CLAUSE_BREAK.finditer(text))
         breaks = ([m.start() for m in found], [m.end() for m in found])
+        cache: dict[tuple[frozenset[str], frozenset[str], tuple[str, ...]], _Decision] = {}
         for q in quantities:
             line, col = line_col(document, q.start)
             sentence = span_at(sentences, starts, q.start) or Span(q.start, q.end)
-            candidates = [
-                f
-                for f in self.facts.facts
-                if any(same_quantity(q, fq) for fq in self._fact_qty[f.id])
-            ]
+            candidates = tuple(
+                sorted(
+                    {fid for fid, fq in self._by_value.get(q.value, ()) if same_quantity(q, fq)},
+                    key=self._order.__getitem__,
+                )
+            )
             if not candidates:
                 findings.append(
                     Finding(
@@ -115,32 +141,21 @@ class Checker:
                     )
                 )
                 continue
-            window = self._window(words, word_starts, sentence, q)
-            best_id: str = ""
-            best_shared: set[str] = set()
-            for f in candidates:
-                shared = window & self._fact_words[f.id]
-                if not best_id or len(shared) > len(best_shared):
-                    best_id, best_shared = f.id, shared
-            # Misplaced number: the words around it match another fact (one that does not
-            # contain this number) clearly better than any fact that does. "26 hours to 9 hours"
-            # shares "support" with the 9-person team fact, but five words with the
-            # response-time fact.
-            # The comparison uses the number's clause (bounded by , ; : brackets or a spaced
-            # dash), because one sentence often joins two facts: "Holding a BA ... in 2014,
-            # Jordan wrote 60 help-centre articles ..." must not move 2014 to the articles.
-            clause = self._clause_words(breaks, words, word_starts, sentence, q)
-            own = max(len(clause & self._fact_words[f.id]) for f in candidates)
-            other_id = ""
-            other_shared: set[str] = set()
-            for f in self.facts.facts:
-                if f in candidates:
-                    continue
-                shared = clause & self._fact_words[f.id]
-                if len(shared) > len(other_shared):
-                    other_id, other_shared = f.id, shared
-            margin = self.facts.misplaced_margin
-            if margin and len(other_shared) >= own + margin:
+            # Only words that occur in some fact can change the decision, so the cache key
+            # keeps just those: repeated or near-repeated text costs one computation.
+            window = frozenset(
+                w for w in self._window(words, word_starts, sentence, q) if w in self._by_word
+            )
+            clause = frozenset(
+                w
+                for w in self._clause_words(breaks, words, word_starts, sentence, q)
+                if w in self._by_word
+            )
+            key = (window, clause, candidates)
+            if key not in cache:
+                cache[key] = self._decide(window, clause, candidates)
+            d = cache[key]
+            if d.moved_from:
                 findings.append(
                     Finding(
                         check="number",
@@ -149,34 +164,68 @@ class Checker:
                         column=col,
                         text=q.text,
                         message=(
-                            f"{q.label()} comes from fact '{best_id}', but the words around it "
-                            f"match fact '{other_id}' ({', '.join(sorted(other_shared))}) "
-                            "better: the number looks moved from another claim"
+                            f"{q.label()} comes from fact '{d.best_id}', but the words around it "
+                            f"match fact '{d.moved_from}' ({', '.join(d.moved_words)}) better: "
+                            "the number looks moved from another claim"
                         ),
-                        fact_ids=[f.id for f in candidates],
+                        fact_ids=list(candidates),
                     )
                 )
-                continue
-            if len(best_shared) >= self.facts.min_context_overlap:
+            elif len(d.best_words) >= self.facts.min_context_overlap:
                 traces.append(
-                    Trace(line=line, text=q.text, fact_id=best_id, shared_words=sorted(best_shared))
+                    Trace(line=line, text=q.text, fact_id=d.best_id, shared_words=d.best_words)
                 )
-                continue
-            findings.append(
-                Finding(
-                    check="number",
-                    severity="error",
-                    line=line,
-                    column=col,
-                    text=q.text,
-                    message=(
-                        f"{q.label()} appears in a fact, but the words around it share no topic "
-                        "with that fact (number used out of context)"
-                    ),
-                    fact_ids=[f.id for f in candidates],
+            else:
+                findings.append(
+                    Finding(
+                        check="number",
+                        severity="error",
+                        line=line,
+                        column=col,
+                        text=q.text,
+                        message=(
+                            f"{q.label()} appears in a fact, but the words around it share no "
+                            "topic with that fact (number used out of context)"
+                        ),
+                        fact_ids=list(candidates),
+                    )
                 )
-            )
         return len(quantities)
+
+    def _decide(
+        self, window: frozenset[str], clause: frozenset[str], candidates: tuple[str, ...]
+    ) -> _Decision:
+        """Which fact supports a number, and whether it looks moved from another fact.
+
+        best: the candidate fact (one holding this number) sharing most window words.
+        moved: a fact WITHOUT this number matches the number's clause by `misplaced_margin`
+        or more words than any candidate does ("26 hours to 9 hours" shares "support" with a
+        fact about a team of 9, but four words with the response-time fact). The clause, not
+        the sentence, because one sentence often joins two facts ("Holding a BA ... in 2014,
+        Jordan wrote 60 articles ...", "Automated 35% of routing and wrote 60 articles").
+        """
+        best_id, best = candidates[0], window & self._fact_words[candidates[0]]
+        for fid in candidates[1:]:
+            shared = window & self._fact_words[fid]
+            if len(shared) > len(best):
+                best_id, best = fid, shared
+        margin = self.facts.misplaced_margin
+        moved_from: str = ""
+        moved_words: tuple[str, ...] = ()
+        if margin and clause:
+            own = max(len(clause & self._fact_words[fid]) for fid in candidates)
+            counts: dict[str, int] = defaultdict(int)
+            for w in clause:
+                for fid in self._by_word[w]:
+                    counts[fid] += 1
+            cand = set(candidates)
+            others = [(n, -self._order[fid], fid) for fid, n in counts.items() if fid not in cand]
+            if others:
+                n, _, fid = max(others)
+                if n >= own + margin:
+                    moved_from = fid
+                    moved_words = tuple(sorted(clause & self._fact_words[fid]))
+        return _Decision(best_id, sorted(best), moved_from, moved_words)
 
     def _clause_words(
         self,

@@ -117,8 +117,16 @@ def _rates(sel: list[dict[str, Any]]) -> dict[str, float]:
 def gate(
     scores: dict[str, dict[str, float]],
     floors: dict[str, Any],
-    baseline: dict[str, dict[str, float]] | None,
+    baseline: dict[str, Any] | None,
+    rows: list[dict[str, Any]] | None = None,
 ) -> list[str]:
+    """Problems that fail the gate (an empty list passes).
+
+    Per scope: a floor broken, the number of cases changed (the corpus changed: re-record the
+    baseline in a reviewed diff), or a metric worse than the baseline. Per document (when the
+    baseline has `outcomes`): a case that was handled correctly is no longer, or a case the
+    baseline does not know. An improvement passes until the baseline is re-recorded.
+    """
     problems: list[str] = []
     tol = float(floors.get("tolerance", 0.0))
     for scope, s in scores.items():
@@ -131,33 +139,49 @@ def gate(
             )
         if baseline and scope in baseline:
             b = baseline[scope]
+            if b.get("cases") != s["cases"]:
+                problems.append(f"{scope}: cases changed {b.get('cases')} -> {s['cases']}")
             for key, value in s.items():
                 if key == "cases" or key not in b:
                     continue
                 worse = value > b[key] + tol if key == "false_alarm_rate" else value < b[key] - tol
                 if worse:
                     problems.append(f"{scope}: {key} regressed {b[key]} -> {value}")
+    if baseline and rows is not None and "outcomes" in baseline:
+        before: dict[str, bool] = baseline["outcomes"]
+        for r in rows:
+            if r["id"] not in before:
+                problems.append(f"{r['id']}: not in the baseline (re-record it)")
+            elif before[r["id"]] and not r["ok"]:
+                problems.append(f"{r['id']}: handled correctly in the baseline, not any more")
     return problems
+
+
+LLM_SPLITS = {"dev": ("dev",), "test": ("heldout",), "all": ("dev", "heldout")}
 
 
 def run_eval(root: Path, split: str, update_baseline: bool, out: Path | None) -> int:
     """Both sets: the hand-built corpus (floors + baseline) and, when present, the model-written
     set in root/llm (baseline only: its results were first seen after the checker was frozen,
-    so no floor was chosen from them)."""
+    so no floor was chosen from them). `split` selects dev, test (the model-written set's
+    `heldout`) or all; a baseline update only rewrites the selected scopes and cases."""
     problems: list[str] = []
     print("hand-built set (evals/cases.jsonl)")
     scores, rows = evaluate(root)
     shown = scores if split == "all" else {split: scores[split]}
-    misses = _print(shown, rows, split)
+    rows = [r for r in rows if split == "all" or r["split"] == split]
+    misses = _print(shown, rows)
     if out:
         out.parent.mkdir(parents=True, exist_ok=True)
         out.write_text(_markdown(scores, misses), encoding="utf-8")
-    problems += _gate_or_record(root, shown, scores, update_baseline, "")
+    problems += _gate_or_record(root, shown, rows, update_baseline, "")
     if (root / "llm" / "labels.jsonl").exists():
-        print("model-written set (evals/llm)")
-        llm_scores, llm_rows = evaluate_llm(root)
-        _print(llm_scores, llm_rows, "all")
-        problems += _gate_or_record(root / "llm", llm_scores, llm_scores, update_baseline, "llm ")
+        splits = LLM_SPLITS[split]
+        print(f"model-written set (evals/llm; {', '.join(splits)})")
+        llm_scores, llm_rows = evaluate_llm(root, splits)
+        llm_shown = llm_scores if split == "all" else {splits[0]: llm_scores[splits[0]]}
+        _print(llm_shown, llm_rows)
+        problems += _gate_or_record(root / "llm", llm_shown, llm_rows, update_baseline, "llm ")
     if update_baseline:
         return 0
     for p in problems:
@@ -166,12 +190,10 @@ def run_eval(root: Path, split: str, update_baseline: bool, out: Path | None) ->
     return 1 if problems else 0
 
 
-def _print(
-    shown: dict[str, dict[str, float]], rows: list[dict[str, Any]], split: str
-) -> list[dict[str, Any]]:
+def _print(shown: dict[str, dict[str, float]], rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     for scope, s in shown.items():
         print("  " + scope + ": " + ", ".join(f"{k} {v}" for k, v in s.items()))
-    misses = [r for r in rows if not r["ok"] and (split == "all" or r["split"] == split)]
+    misses = [r for r in rows if not r["ok"]]
     for r in misses:
         tag = " (hard case)" if r["hard"] else ""
         print(f"    miss {r['id']} {r['split']} {r['kind']}{tag}: errors={r['error_checks']}")
@@ -181,20 +203,23 @@ def _print(
 def _gate_or_record(
     where: Path,
     shown: dict[str, dict[str, float]],
-    scores: dict[str, dict[str, float]],
+    rows: list[dict[str, Any]],
     update_baseline: bool,
     prefix: str,
 ) -> list[str]:
     baseline_path = where / "baseline.json"
+    baseline: dict[str, Any] = (
+        json.loads(baseline_path.read_text(encoding="utf-8")) if baseline_path.exists() else {}
+    )
     if update_baseline:
-        baseline_path.write_text(json.dumps(scores, indent=2) + "\n", encoding="utf-8")
-        print(f"  baseline written to {baseline_path}; review the diff before committing")
+        baseline.update(shown)
+        baseline.setdefault("outcomes", {}).update({r["id"]: r["ok"] for r in rows})
+        baseline["outcomes"] = dict(sorted(baseline["outcomes"].items()))
+        baseline_path.write_text(json.dumps(baseline, indent=2) + "\n", encoding="utf-8")
+        print(f"  baseline updated ({', '.join(shown)}) in {baseline_path}; review the diff")
         return []
     floors = json.loads((where / "gate.json").read_text(encoding="utf-8"))
-    baseline = (
-        json.loads(baseline_path.read_text(encoding="utf-8")) if baseline_path.exists() else None
-    )
-    return [prefix + p for p in gate(shown, floors, baseline)]
+    return [prefix + p for p in gate(shown, floors, baseline or None, rows)]
 
 
 def _markdown(scores: dict[str, dict[str, float]], misses: list[dict[str, Any]]) -> str:

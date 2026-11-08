@@ -41,12 +41,19 @@ contain the number matches the number's clause by `misplaced_margin` (2) or more
 best fact that does, the number is flagged as moved. It uses the clause, not the sentence,
 because one sentence often joins two facts ("Holding a BA ... in 2014, Jordan wrote 60
 articles ..."): measured on the dev half of the model-written set, the sentence-level version
-caught the moved number but also failed that true sentence; the clause-level version caught
-the moved number with no false alarm. This rule came from looking at dev documents, which is
-why the held-out half was run only once, afterwards, and why its result is reported separately.
-On held-out it changed nothing (the overlap rule already caught the three moved numbers there),
-and it changed nothing on the hand-built set; the two hand-built hard cases still pass because
-no other fact matches them better.
+caught the moved number but also failed that true sentence (a test keeps that comparison). A
+review then found that comma-bounded clauses were not enough: "Automated 35% of routing and
+wrote 60 help-centre articles ..." flagged 35%, and the mirror sentence flagged 60. Clauses
+therefore also end at "and", "but", "while" and "whereas"; both sentences are tests. This rule
+came from looking at dev documents. On held-out it changed nothing (the overlap rule already
+caught both moved numbers there), and it changed nothing on the hand-built set; the two
+hand-built hard cases still pass because no other fact matches them better. "No false alarm"
+only holds for documents close to the facts' wording, which is what the model wrote.
+
+The comparison runs on indexes built once per facts file (value to facts, word to facts) and is
+cached per document by the fact-words around each number, so its cost does not grow with every
+fact: a 200,000-character document against 300 facts takes about 1.2 s in the tests (it was
+over three minutes before the indexes).
 
 **What "content word" means.** Stopwords, units ("years", "months", "percent"), numbers, words
 under three letters and the subject's name are removed, then a small stemmer folds plurals and
@@ -122,16 +129,33 @@ gate.
 
 Protocol, in order: (1) the request list, its dev/held-out split and the prompt were written
 and fixed; (2) 48 documents were generated with one model call each (plus one retry after a
-rate limit: 49 calls); (3) every document was read and labelled, with a reason, before the
-checker was run on any of them; documents that did not follow their instruction were labelled
-`dropped`, never edited; (4) the checker was run on dev, one rule was added (above), and the
-checker was frozen; (5) held-out was run once. Labels are limited to what truth-gate checks
-(numbers, skills, blocked phrases); relations the model added are recorded as a finding, not
-as errors, because the checker does not claim to check them.
+rate limit: 49 calls); (3) every document, held-out included, was read and labelled, with a
+reason, before the checker was run on any of them; documents that did not follow their
+instruction were labelled `dropped`, never edited; (4) the checker was run on dev, one rule was
+added (above), and the checker was frozen; (5) held-out was run once. Labels are limited to what
+truth-gate checks (numbers, skills, blocked phrases); relations the model added are recorded as
+a finding, not as errors, because the checker does not claim to check them.
+
+What this protocol does not give: a blind held-out half. Labelling read the held-out documents,
+and the decision not to add "Excel" to the vocabulary was made knowing the held-out half uses
+it. The held-out number is a first run after freezing, not a blind estimate, and from then on
+held-out is a regression set (every `make check` scores it).
+
+Review round 2 applied the drop rule evenly: a "moved" number must keep its value and its unit,
+so L12 ("22%" became "22 months") is dropped like L20 ("4 hours" became "4 million"), and the
+label test compares value and unit instead of digit strings. The scores were re-recorded after
+that change and after the clause fix; both are in the history.
+
+History: the generated documents, the labels, the rule and the first baselines landed in one
+commit, because the rules the build ran under forbid rewriting history, unpushed history
+included (no reset). The order of events above is the record; the review-round-2 changes are separate
+commits.
 
 The gate for this set is regression-only (`evals/llm/gate.json` has no floors) because any
-floor would have been chosen after seeing the numbers. Vocabulary was not extended for the
-"Excel" misses, so the held-out score is not inflated by a fix seen on dev.
+floor would have been chosen after seeing the numbers. It fails when a metric gets worse, when
+the number of scored documents changes, or when a document that was handled correctly no
+longer is. Hashes in the labels prove the documents were not edited after labelling; the raw
+API responses of this run were not kept.
 
 ## Not done
 

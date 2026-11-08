@@ -206,3 +206,59 @@ def test_a_number_moved_from_another_fact_is_flagged() -> None:
     assert off.check(
         "Reduced the average first-response time for support tickets to 9 hours."
     ).passed
+
+
+def test_two_facts_joined_by_and_are_judged_separately() -> None:
+    c = make_checker(
+        [
+            fact("routing", "Automated 35% of incoming ticket routing with Python and Zapier."),
+            fact("help", "Wrote 60 help-centre articles that cut repeat questions by 22%."),
+        ]
+    )
+    for text in (
+        "Automated 35% of routing and wrote 60 help-centre articles that cut repeat questions "
+        "by 22%.",
+        "Wrote 60 articles and automated 35% of incoming ticket routing with Python and Zapier.",
+    ):
+        report = c.check(text)
+        assert report.passed, (text, [f.message for f in report.findings])
+
+
+def test_clause_level_comparison_is_what_keeps_a_joined_sentence_passing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    facts = [
+        fact("degree", "BA in Economics, University of Sampleton, 2014."),
+        fact("help", "Wrote 60 help-centre articles that cut repeat questions by 22%."),
+    ]
+    text = (
+        "Holding a BA in Economics from the University of Sampleton in 2014, Robin wrote 60 "
+        "help-centre articles that cut repeat questions by 22%."
+    )
+    assert make_checker(facts).check(text).passed
+    # The same rule applied to the whole sentence instead of the clause flags 2014.
+    monkeypatch.setattr(
+        Checker,
+        "_clause_words",
+        lambda self, breaks, words, starts, sentence, q: self._window(words, starts, sentence, q),
+    )
+    report = make_checker(facts).check(text)
+    assert [f.text for f in report.findings] == ["2014"]
+
+
+def test_worst_case_with_many_facts_is_fast() -> None:
+    import time
+
+    facts = [
+        fact(f"f{i}", f"Led a support team of {i} engineers in region {i} for project {i}.")
+        for i in range(1, 301)
+    ]
+    c = make_checker(facts)
+    doc = "".join(
+        f"Led a support team of {i % 300 + 1} engineers and moved {(i * 7) % 300 + 1} "
+        f"parcels for region {i}. "
+        for i in range(20_000)
+    )[:MAX_DOCUMENT_CHARS]
+    started = time.perf_counter()
+    c.check(doc)
+    assert time.perf_counter() - started < 15.0

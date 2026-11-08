@@ -193,6 +193,7 @@ def main() -> int:
             **{k: req[k] for k in ("id", "split", "genre", "requested", "focus")},
             "document": out.document,
             "model_report": out.injected_error,
+            "raw_response": resp.text,  # the model's exact output, kept as evidence
         }
         with lock:
             done[req["id"]] = row

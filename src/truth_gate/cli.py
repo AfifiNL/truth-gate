@@ -90,7 +90,12 @@ def main(argv: list[str] | None = None) -> int:
     p.set_defaults(fn=_serve)
     p = sub.add_parser("eval", help="run the labelled eval corpus and its gate")
     p.add_argument("--root", default="evals")
-    p.add_argument("--split", choices=["dev", "test", "all"], default="all")
+    p.add_argument(
+        "--split",
+        choices=["dev", "test", "all"],
+        default="all",
+        help="dev, test (the hand-built test split and the model-written held-out half) or all",
+    )
     p.add_argument("--update-baseline", action="store_true")
     p.add_argument("--out", help="write a Markdown report here")
     p.set_defaults(fn=_eval)

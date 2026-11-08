@@ -104,12 +104,13 @@ to 2m" is two separate numbers). A document number passes when:
    Every line break ends a sentence, so list items and wrapped lines never lend each other
    context. Content words are stemmed lightly ("conferences" = "conference"), and stopwords,
    units ("years", "months"), numbers and the subject's name are ignored; and
-3. the number's own **clause** (bounded by `, ; :`, brackets or a spaced dash) does not match a
-   fact *without* this number by `misplaced_margin` (2) or more words than it matches the best
-   fact *with* it. This catches a true number moved to another claim when the two claims share
-   a topic word: "reduced first-response time for support tickets from 26 hours to 9 hours"
-   shares "support" with the fact about a team of 9, but five words with the response-time
-   fact.
+3. the number's own **clause** (bounded by `, ; :`, brackets, a spaced dash, or the words
+   "and", "but", "while", "whereas") does not match a fact *without* this number by
+   `misplaced_margin` (2) or more words than it matches the best fact *with* it. This catches a
+   true number moved to another claim when the two claims share a topic word: "reduced
+   first-response time for support tickets from 26 hours to 9 hours" shares "support" with the
+   fact about a team of 9, but four words (first-response, hour, support, ticket; "time" is a
+   unit word) with the response-time fact.
 
 **Not checked** (each is a place where a false figure passes, so the list is complete):
 
@@ -196,8 +197,9 @@ Every miss is one of the five `hard` cases:
   blocked phrases are whole phrases, not word stems.
 
 The gate (`evals/gate.json`) fails `make check` when, in any scope, the catch rate drops below
-0.75, the false-alarm rate exceeds 0.20, or any metric gets worse than in
-`evals/baseline.json` (an improvement passes; re-record the baseline to lock it in). Tests prove the gate works: a checker that skips numbers, ignores context
+0.75, the false-alarm rate exceeds 0.20, any metric gets worse than in `evals/baseline.json`,
+the number of cases changes, or any case that was handled correctly no longer is (an
+improvement passes; re-record the baseline to lock it in). Tests prove the gate works: a checker that skips numbers, ignores context
 or ignores skills fails it.
 
 **What these numbers are not.** The corpus was written by the same author as the checker, from
@@ -211,21 +213,29 @@ thinking level low, 2026-11-08) from the same synthetic facts: 16 each of a spea
 service blurb and an annual-report paragraph. Half were asked to use only the facts; the other
 half were asked to introduce exactly one error of a named type (6 each: wrong number, a number
 moved to another claim, an invented tool, a blocked phrase) and to say what they changed. The
-prompt sets everything in a fictional world; no real company, place or person appears (a test
-checks every capitalised word). `evals/llm/generate.py` regenerates the set and costs about 48
-model calls; it refuses to make any call unless `TG_MAX_LIVE_CALLS` is set.
+prompt sets everything in a fictional world; apart from software product names (the skills
+list and the tools the model invented) no real people, places or companies appear: a test
+checks every capitalised word, sentence openers included, against the fictional facts, the
+skills list, a reviewed list of English sentence openers and the one tool named in that
+document's label. `evals/llm/generate.py` regenerates the set and costs about 48 model calls; it
+refuses to make any call unless `TG_MAX_LIVE_CALLS` is set.
 
 Every document was **labelled by reading it before the checker was run on any of them**
-(`evals/llm/labels.jsonl`, one reason per document). Generated text is never edited:
-`tests/test_llm_eval.py` checks each document's hash and, without using truth-gate's parser,
-that each label's evidence holds (an injected number is absent from the facts, an invented tool
-is absent from the facts file, a clean document uses no digit string the facts lack).
+(`evals/llm/labels.jsonl`, one reason per document). The labels record each document's
+SHA-256, and `tests/test_llm_eval.py` checks it: that proves the text was not edited after
+labelling, not that it is the model's raw output (the raw API responses of this run were not
+kept; `generate.py` keeps them from now on). The same test checks, with a small parser of its
+own rather than truth-gate's, that each label's evidence holds, comparing value and unit: an
+injected quantity is absent from the facts, a moved one keeps the fact's value and unit, the
+document's other quantities all come from the facts, an invented tool is absent from the facts
+file, and a clean document uses no quantity the facts lack.
 
 What the model did:
 
-- **Injected errors: 22 of 24 followed the instruction.** Wrong number 6/6, invented tool 6/6,
-  blocked phrase 6/6, moved number 4/6. One "moved" number became "4 million" hours (a changed
-  value), and one swapped two numbers instead of moving one; both are dropped from the scores.
+- **Injected errors: 21 of 24 followed the instruction.** Wrong number 6/6, invented tool 6/6,
+  blocked phrase 6/6, moved number 3/6. Asked to move a number unchanged, the model once wrote
+  "4 million" hours (a changed value), once turned "22%" into "22 months" (a changed unit) and
+  once swapped two numbers; all three are dropped from the scores, none edited.
   For the blocked phrase it chose "rockstar" all six times; the invented tools were Tableau (2),
   Excel (2), Salesforce and Docker.
 - **Clean documents: 24 of 24 used only figures, tools and phrases from the facts.** But all 24
@@ -233,25 +243,38 @@ What the model did:
   cause ("these improvements raised satisfaction") or an employer ("at ExampleParcel Co,
   Jordan raised the score"). truth-gate does not check relations, so these pass.
 
-Scores (46 scored documents; a split was fixed before generation, `heldout` was run once after
-the checker was frozen):
+Scores (45 scored documents; the dev/held-out split was fixed before generation):
 
 | scope | documents | catch rate | false-alarm rate | wrong number | moved number | invented tool | blocked phrase |
 |---|---|---|---|---|---|---|---|
-| all | 46 | 0.909 | 0.000 | 1.000 | 1.000 | 0.667 | 1.000 |
-| dev | 22 | 0.900 | 0.000 | 1.000 | 1.000 | 0.667 | 1.000 |
-| heldout | 24 | 0.917 | 0.000 | 1.000 | 1.000 | 0.667 | 1.000 |
+| all | 45 | 0.905 (19/21) | 0.000 (0/24) | 1.000 | 1.000 | 0.667 | 1.000 |
+| dev | 22 | 0.900 (9/10) | 0.000 (0/12) | 1.000 | 1.000 (1/1) | 0.667 | 1.000 |
+| heldout | 23 | 0.909 (10/11) | 0.000 (0/12) | 1.000 | 1.000 (2/2) | 0.667 | 1.000 |
 
 Both misses are "Excel", which is not in the built-in vocabulary ("excel" is also an English
-verb). It was deliberately not added after the dev run, because the held-out half uses it too.
-One checker change was made after looking at `dev`: rule 3 above (moved numbers), which caught
-one dev document the overlap rule passed. On `heldout`, the overlap rule alone already caught
-all three moved numbers, so the new rule changed nothing there, and it added no false alarm on
-either set. Its evidence is one dev document plus "no harm" on the held-out half and the
-hand-built set, not a measured improvement. `make eval` gates this set on its baseline only:
-the results were seen after the fact, so no floor was chosen from them.
+verb). It was not added, partly because the held-out half uses it too: that decision already
+used held-out content.
 
-**Limits of this set:** one model, one prompt template, one run, 46 scored documents from a
+One checker change was made after looking at `dev`: rule 3 above (moved numbers). It catches
+the one moved number on dev, which the overlap rule passed. On `heldout` the overlap rule alone
+already caught both moved numbers, so the rule changed nothing there (rule off: all 0.857, dev
+0.800, held-out 0.909), and it changed nothing on the hand-built set. It raised no false alarm
+on these documents, which stay close to the facts' own wording; its first version did raise
+false alarms on constructed sentences that join two facts with "and" ("Automated 35% of routing
+and wrote 60 help-centre articles ..."), which is why clauses now also end at "and", "but",
+"while" and "whereas". Its evidence is one dev document plus "no harm" elsewhere, not a measured
+improvement.
+
+**Held-out is a regression set now, not a blind one.** It was run once, after the checker was
+frozen, and that first result is the one above; but labelling read every held-out document, the
+Excel decision used held-out content, and from now on `make check` scores both halves on every
+run and `make eval-baseline` re-records both. `--split dev` scores dev only (and a dev-only
+baseline update leaves held-out untouched). The gate for this set is regression-only: the
+results were seen after the fact, so no floor was chosen from them; it fails when a metric gets
+worse, when the number of scored documents changes, or when any document that was handled
+correctly no longer is.
+
+**Limits of this set:** one model, one prompt template, one run, 45 scored documents from a
 single facts file; the errors are ones the model was asked to make, which are easier than the
 ones it makes by accident. It shows the checks work on model-written prose, not how often a
 model errs unprompted.

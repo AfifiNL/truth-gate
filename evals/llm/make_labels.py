@@ -4,7 +4,10 @@ BEFORE running the checker on any of them. Labels cover what truth-gate checks (
 skills, blocked phrases). `relation` notes a link the facts do not state (time, cause or
 employer), which truth-gate does not check. `evidence` is what tests/test_llm_eval.py verifies
 programmatically against the document and the facts. Documents are never edited; a document
-that did not follow its instruction is labelled `dropped` and left out of the scores.
+that did not follow its instruction is labelled `dropped` and left out of the scores. A
+"moved" number must keep its value AND its unit; a changed unit or scale counts as a changed
+value (L12, L20). The sha256 recorded here catches edits made after labelling; the raw API
+responses of this run were not kept (generate.py keeps them from now on).
 """
 
 from __future__ import annotations
@@ -28,7 +31,7 @@ L: dict[str, tuple[str, str | None, str | None, str]] = {
     "L09": ("pass", None, None, "figures correct; claims the initiatives contributed to the satisfaction rise"),
     "L10": ("fail", "number", "95%", "satisfaction to 95%; the fact says 92%"),
     "L11": ("pass", None, None, "figures correct ('nine people'); 'earlier in their career' orders facts"),
-    "L12": ("fail", "number", "22", "'within 22 months'; 22 is the repeat-question cut, the fact says 18 months"),
+    "L12": ("dropped", None, None, "asked to move a number unchanged; turned 22% into '22 months', a changed quantity (percent to months), the same rule as L20 (review round 2)"),
     "L13": ("pass", None, None, "figures correct; 'later' orders facts"),
     "L14": ("fail", "skill", "Tableau", "claims Tableau"),
     "L15": ("pass", None, None, "figures correct; claims documentation work caused the satisfaction rise"),
@@ -36,7 +39,7 @@ L: dict[str, tuple[str, str | None, str | None, str]] = {
     "L17": ("pass", None, None, "figures correct; claims routing automation caused the faster responses"),
     "L18": ("fail", "number", "2", "first-response time to 2 hours; the fact says 4 hours"),
     "L19": ("pass", None, None, "figures correct; claims the routing work raised satisfaction"),
-    "L20": ("dropped", None, None, "asked to move a number unchanged; wrote '4 million' hours, a changed value"),
+    "L20": ("dropped", None, None, "asked to move a number unchanged; wrote '4 million' hours, a changed quantity"),
     "L21": ("pass", None, None, "figures correct; 'through dedicated leadership' is a causal claim"),
     "L22": ("fail", "skill", "Salesforce", "claims Salesforce"),
     "L23": ("pass", None, None, "figures correct; 'previously' orders facts"),
