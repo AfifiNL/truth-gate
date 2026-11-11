@@ -296,7 +296,9 @@ target_text, market)`, which returns the pair report as structured content. Like
 It tells an agent that localises a document to read the market's rules first, write the draft,
 run the check, fix every finding and hand over the draft with the passing report. It forbids
 three things: editing the brand file, editing the source, and deleting a sentence to make a
-finding go away. [docs/SKILL_WALKTHROUGH.md](docs/SKILL_WALKTHROUGH.md) records one session.
+finding go away. To use it in Claude Code, copy the folder to `.claude/skills/` in your project
+or to `~/.claude/skills/`. [docs/SKILL_WALKTHROUGH.md](docs/SKILL_WALKTHROUGH.md) records one
+session.
 
 ## Evals
 
