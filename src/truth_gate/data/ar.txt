@@ -1,0 +1,57 @@
+# Arabic number reading and matching for the pair check (`truth-gate check-pair --market ar`).
+# Format: a [section] line, then "value = form | form" lines, or bare "form | form" lines.
+# Forms are written as in normal text; the loader folds them the same way documents are folded
+# (alef forms to one alef, no diacritics, no elongation character).
+# A form starting with "=" takes no attached particle except the conjunction: "ست" is six,
+# but the particle rule must not read "لست" ("I am not") as "for six".
+
+[number-words]
+# always a number
+2 = اثنان | اثنين | اثنتان | اثنتين
+3 = ثلاثة | ثلاث
+4 = أربعة | أربع
+5 = خمسة | خمس
+6 = ستة | =ست
+7 = سبعة | سبع
+8 = ثمانية | ثماني | ثمان
+9 = تسعة | تسع
+10 = عشرة | =عشر
+# dual forms
+200 = مئتان | مئتين | مائتان | مائتين
+2000 = ألفان | ألفين
+2000000 = مليونان | مليونين
+
+[needs-scale]
+# only a number when a scale word follows ("واحد مليون"); alone it is often "one of ..."
+1 = واحد | واحدة
+
+[scale-words]
+# after a number: "5 آلاف", "3 ملايين", "2 مليار"
+100 = مئة | مائة
+1000 = ألف | آلاف
+1000000 = مليون | ملايين
+1000000000 = مليار | مليارات
+
+[bare-scale]
+# a number on their own, singular only: "ألف عميل" is a thousand customers,
+# "آلاف العملاء" (thousands of customers) is not a number
+100 = مئة | مائة
+1000 = ألف
+1000000 = مليون
+1000000000 = مليار
+
+[percent-words]
+بالمئة | بالمائة | في المئة | في المائة
+
+[currency-words]
+EUR = يورو
+USD = دولار | دولارات
+
+[number-particles]
+# may be written directly in front of digits: "ب20", "و5", "ل3"
+و | ف | ب | ل | ك | وب | ول | فب | فل
+
+[word-particles]
+# stripped from the front of a word before a number word, a term or a phrase is matched:
+# conjunctions, attached prepositions and the definite article, alone and combined
+و | ف | ب | ل | ك | ال | وال | فال | بال | كال | لل | وب | ول | وك | ولل | وبال | فب | فل | فلل | فبال

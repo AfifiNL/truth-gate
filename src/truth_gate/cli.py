@@ -2,7 +2,10 @@
 
 truth-gate check DOC --facts FACTS [--json] [--strict]   exit 0 pass, 1 fail, 2 bad input
 truth-gate facts FACTS                                    validate a facts file
-truth-gate serve --facts FACTS                            MCP server on stdio
+truth-gate check-pair TARGET --source SOURCE --brand BRAND --market MARKET [--facts FACTS]
+                                                          a localised draft against its source
+truth-gate brand BRAND                                    validate a brand file
+truth-gate serve --facts FACTS [--brand BRAND]            MCP server on stdio
 truth-gate eval [--split dev|test|all] [--update-baseline]
 """
 
@@ -13,8 +16,10 @@ import json
 import sys
 from pathlib import Path
 
+from truth_gate.brand import BrandError, load_brand
 from truth_gate.checker import Checker, DocumentTooLarge
 from truth_gate.facts import FactsError, load_facts
+from truth_gate.pair import PairChecker
 
 
 def _check(args: argparse.Namespace) -> int:
@@ -40,6 +45,51 @@ def _check(args: argparse.Namespace) -> int:
     return 1 if failed else 0
 
 
+def _read(path: str) -> str | None:
+    try:
+        return Path(path).read_text(encoding="utf-8")
+    except OSError as exc:
+        print(f"error: cannot read {path}: {exc.strerror}", file=sys.stderr)
+    except UnicodeDecodeError:
+        print(f"error: {path} is not valid UTF-8", file=sys.stderr)
+    return None
+
+
+def _check_pair(args: argparse.Namespace) -> int:
+    brand = load_brand(args.brand)
+    facts = load_facts(args.facts) if args.facts else None
+    checker = PairChecker(brand, args.market, facts)
+    source, target = _read(args.source), _read(args.target)
+    if source is None or target is None:
+        return 2
+    try:
+        report = checker.check(source, target)
+    except DocumentTooLarge as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    if args.json:
+        print(json.dumps(report.model_dump(mode="json"), indent=2, ensure_ascii=False))
+    else:
+        print(report.render())
+    failed = not report.passed or (args.strict and report.warnings > 0)
+    return 1 if failed else 0
+
+
+def _brand(args: argparse.Namespace) -> int:
+    brand = load_brand(args.brand)
+    print(
+        f"OK: {brand.brand}, {len(brand.do_not_translate)} name(s) that stay as written, "
+        f"{len(brand.markets)} market(s)"
+    )
+    for name, market in brand.markets.items():
+        print(
+            f"  {name}: {len(market.terms)} term(s), {len(market.forbidden)} forbidden "
+            f"phrase(s), {len(market.required_lines)} required line(s)"
+            + (f", address {market.address}" if market.address else "")
+        )
+    return 0
+
+
 def _facts(args: argparse.Namespace) -> int:
     facts = load_facts(args.facts)
     checker = Checker(facts)
@@ -58,7 +108,8 @@ def _facts(args: argparse.Namespace) -> int:
 def _serve(args: argparse.Namespace) -> int:
     from truth_gate.mcp_server import build_server
 
-    build_server(load_facts(args.facts)).run("stdio")
+    brand = load_brand(args.brand) if args.brand else None
+    build_server(load_facts(args.facts), brand).run("stdio")
     return 0
 
 
@@ -82,11 +133,24 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--json", action="store_true", help="print the report as JSON")
     p.add_argument("--strict", action="store_true", help="warnings fail too")
     p.set_defaults(fn=_check)
+    p = sub.add_parser("check-pair", help="check a localised draft against its English source")
+    p.add_argument("target")
+    p.add_argument("--source", required=True)
+    p.add_argument("--brand", required=True)
+    p.add_argument("--market", required=True, help="a market in the brand file, e.g. nl-NL")
+    p.add_argument("--facts", help="also check the source against this facts file")
+    p.add_argument("--json", action="store_true", help="print the report as JSON")
+    p.add_argument("--strict", action="store_true", help="warnings fail too")
+    p.set_defaults(fn=_check_pair)
+    p = sub.add_parser("brand", help="validate a brand file and list its markets")
+    p.add_argument("brand")
+    p.set_defaults(fn=_brand)
     p = sub.add_parser("facts", help="validate a facts file and list its numbers")
     p.add_argument("facts")
     p.set_defaults(fn=_facts)
     p = sub.add_parser("serve", help="run the MCP server on stdio")
     p.add_argument("--facts", required=True)
+    p.add_argument("--brand", help="adds the check_localised tool")
     p.set_defaults(fn=_serve)
     p = sub.add_parser("eval", help="run the labelled eval corpus and its gate")
     p.add_argument("--root", default="evals")
@@ -102,7 +166,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     try:
         code: int = args.fn(args)
-    except FactsError as exc:
+    except (FactsError, BrandError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
     return code
