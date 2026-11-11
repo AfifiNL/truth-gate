@@ -1,4 +1,6 @@
 # Arabic number reading and matching for the pair check (`truth-gate check-pair --market ar`).
+# Drafted by the coding agent that built v0.2. The author, a native speaker, states that he
+# reviewed these lists on 2026-11-11 and changed none.
 # Format: a [section] line, then "value = form | form" lines, or bare "form | form" lines.
 # Forms are written as in normal text; the loader folds them the same way documents are folded
 # (alef forms to one alef, no diacritics, no elongation character).

@@ -262,7 +262,9 @@ dual and "one" as a bare word stay as they are and are listed as limits.
 The labels of both halves were written by the coding agent that built this version. That is the
 weakest part of the experiment: the reader who labelled the documents also wrote the checker.
 The hashes and the commit order show the labels came first; they do not make the reader
-independent.
+independent. The author states that he reviewed all 80 Arabic labels, at least 25 of the Dutch
+ones and the Arabic word lists on 2026-11-11, and changed nothing. No label and no word form
+was edited after that review, so the scores are the ones recorded before it.
 
 ## Independent review
 

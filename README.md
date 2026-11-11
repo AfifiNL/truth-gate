@@ -437,8 +437,8 @@ Counting the hard cases, the catch rate is 0.906 and the false-alarm rate 0.3. T
 the baseline pins every single outcome, so a new miss or false alarm fails `make check`.
 
 This set was written together with the checker. It is a regression gate and a description of
-behaviour, not an accuracy estimate. Neither the Dutch nor the Arabic has been checked by a
-native speaker yet.
+behaviour, not an accuracy estimate. Neither the Dutch nor the Arabic pairs have been checked
+by a native speaker yet.
 
 ### Localisation experiment
 
@@ -453,8 +453,9 @@ sources were split into `dev` and `test` (20 each) before anything was run.
 
 Every document was labelled by reading it before the checker ran on its half: which of the six
 rules a reviewer would say it breaks, with the evidence. The labels were written by the coding
-agent that built this version (Claude). They have not yet been reviewed by a second reader.
-Labels record each document's SHA-256, the raw API responses are kept, and
+agent that built this version (Claude). The author, a native Arabic speaker, states that he
+reviewed all 80 Arabic labels and at least 25 of the 80 Dutch ones on 2026-11-11 and changed
+none. Labels record each document's SHA-256, the raw API responses are kept, and
 the history shows each half's labels committed before the commit that ran the checker on it.
 The notes in `make_labels.py` record, before each run, where the reader expected the checker
 to disagree.
@@ -557,8 +558,9 @@ both halves are a regression set: `make check` fails when a document's outcome c
 - It checks tone only where tone is a rule a list can express: forbidden phrases, and the form
   of address in Dutch.
 - English source; Dutch and Arabic targets. No other language. The Dutch word lists and the
-  Dutch test pairs have not been checked by a native speaker. The Arabic word lists and test
-  pairs were drafted by the coding agent and have not yet been reviewed by a native speaker.
+  Dutch test pairs have not been checked by a native speaker. The Arabic word lists were
+  drafted by the coding agent; the author, a native speaker, states that he reviewed them on
+  2026-11-11 and changed none. The Arabic test pairs have not been reviewed by a native speaker.
 - A term is checked for presence, not per occurrence: if the source says "shipment" twice and
   the target uses the brand's word once and another word the second time, it passes.
 - Terms and forbidden phrases match by listed forms. A Dutch compound (`zendingnummer`) or an
