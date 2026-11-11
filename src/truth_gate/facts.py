@@ -121,6 +121,8 @@ def load_facts(path: str | Path) -> Facts:
         raise FactsError(f"facts file {p} is not valid UTF-8") from None
     except yaml.YAMLError as exc:
         raise FactsError(f"facts file {p} is not valid YAML: {exc}") from None
+    except (TypeError, RecursionError) as exc:  # an unhashable key, or nesting too deep
+        raise FactsError(f"facts file {p} is not valid YAML: {type(exc).__name__}") from None
     return parse_facts(raw, str(p))
 
 

@@ -30,6 +30,7 @@ from truth_gate.numbers import (
     _GLUED_UNIT,
     _ISO_AFTER,
     _SCALE_SUFFIX,
+    _SYMBOL_PREFIX,
     _THOUSANDS,
     ISO_CODES,
     Kind,
@@ -50,6 +51,7 @@ _FOLD_AR = {
     "\u0625": "\u0627",  # alef with hamza below
     "\u0622": "\u0627",  # alef with madda
     "\u0671": "\u0627",  # alef wasla
+    "\u0649": "\u064a",  # alef maqsura, often typed for a final ya
     "\u066a": "%",  # Arabic percent sign
     "\u066b": ".",  # Arabic decimal separator
     "\u066c": ",",  # Arabic thousands separator
@@ -63,6 +65,7 @@ _EN_DIGITS = re.compile(r"\d+(?:[.,:/]\d+)*")
 _NL_THOUSANDS = re.compile(r"\d{1,3}(?:\.\d{3})+(?:,\d+)?")
 _NL_DECIMAL = re.compile(r"\d+,\d+")
 _NL_ENGLISH_DECIMAL = re.compile(r"\d+\.\d+")
+_SYMBOL_AFTER = re.compile(_SP + "?([\u20ac$\u00a3\u00a5\u20b9])(?!\\w)")
 
 
 def _is_arabic_mark(ch: str) -> bool:
@@ -196,29 +199,65 @@ def _alt(words: Iterable[str]) -> str:
     )
 
 
+_ARTICLE = "\u0627\u0644"
+
+
+def _arabic_word(original: str, article_optional: bool) -> tuple[str, str]:
+    """(prefix pattern, bare folded word) for one word of an Arabic term or phrase.
+
+    The definite article is a bare alef and a lam. A word that starts with a hamza and a lam
+    (the word for dairy, for one) only looks like it after folding, so the original spelling
+    decides. `article_optional` lets the article be absent in the text; without it a listed
+    article must be there, and a word listed without one may still take it.
+    """
+    folded = fold_text(original, "ar")
+    has_article = original.startswith(_ARTICLE) and len(folded) > 4
+    if has_article and article_optional:
+        return f"(?:{_ARTICLE})?", folded[2:]
+    if has_article:
+        return _ARTICLE, folded[2:]
+    return f"(?:{_ARTICLE})?", folded
+
+
 def term_pattern(form: str, data: LocaleData) -> str:
     """Regex fragment for one target form of a term.
 
-    Dutch: the form as written. Arabic: the definite article is ignored on every word
-    ("شركة النقل" and "شركة نقل" are the same term), and the last word may carry a pronoun
-    suffix ("شحنتك" uses the term "شحنة").
+    Dutch: the form as written. Arabic: the definite article is ignored on every word, a word
+    may end in the alef of the indefinite accusative, and the last word may carry a pronoun
+    suffix (a final ta marbuta opens to ta before it).
     """
-    words = fold_text(form.strip(), data.code).split()
     if data.code != "ar":
-        return r"\s+".join(re.escape(w) for w in words)
-    article = "\u0627\u0644"
+        return r"\s+".join(re.escape(w) for w in form.split())
     suffix = "(?:" + _alt(data.pronoun_suffixes) + ")" if data.pronoun_suffixes else ""
+    words = form.split()
     out: list[str] = []
     for i, word in enumerate(words):
-        bare = word[2:] if word.startswith(article) and len(word) > 4 else word
-        body = re.escape(bare)
+        prefix, bare = _arabic_word(word, article_optional=True)
+        body = re.escape(bare) + "\u0627?"
         if suffix and i == len(words) - 1:
-            if bare.endswith("\u0629"):  # ta marbuta opens to ta before a suffix
+            if bare.endswith("\u0629"):
                 body = f"(?:{body}|{re.escape(bare[:-1])}\u062a{suffix})"
             else:
-                body = f"{body}{suffix}?"
-        out.append(f"(?:{article})?{body}")
+                body = f"{re.escape(bare)}(?:\u0627|{suffix})?"
+        out.append(prefix + body)
     return r"\s+".join(out)
+
+
+def phrase_pattern(phrase: str, data: LocaleData) -> str:
+    """Regex fragment for a forbidden phrase. Words may be joined by whitespace, Markdown
+    emphasis marks or a hyphen ("gratis **verzending**", "gratis-verzending").
+
+    Arabic: a word listed without the article also matches with it, and may end in the alef of
+    the indefinite accusative. A listed article must be there: "the cheapest" is not "cheaper".
+    """
+    joiner = r"[\s*_\-]+"
+    if data.code != "ar":
+        return joiner.join(re.escape(w) for w in phrase.split())
+    out = []
+    for word in phrase.split():
+        prefix, bare = _arabic_word(word, article_optional=False)
+        out.append(prefix + re.escape(bare) + "\u0627?")
+    return joiner.join(out)
 
 
 def _read_sections(code: str) -> dict[str, list[tuple[str | None, list[str]]]]:
@@ -377,15 +416,25 @@ def _suffix(
         return scale, scaled, "money", m.group(1), None, m.end()
     if data.currency_rx and (m := data.currency_rx.match(text, end)):
         return scale, scaled, "money", data.currency_words[m.group(1).lower()], None, m.end()
+    if m := _SYMBOL_AFTER.match(text, end):  # "49 \u20ac", "5,000$"
+        return scale, scaled, "money", _SYMBOL_PREFIX[m.group(1)], None, m.end()
     if m := _GLUED_UNIT.match(text, end):
         return scale, scaled, "plain", None, m.group(0).lower(), m.end()
     return scale, scaled, "plain", None, None, end
 
 
+def _prefix(text: str, start: int) -> tuple[str | None, int]:
+    """Currency written before the number, also across a no-break space ("\u20ac\u00a049")."""
+    lo = max(0, start - 6)
+    head = text[lo:start].replace("\u00a0", " ").replace("\u202f", " ")
+    currency, at = _prefix_currency(head, len(head))
+    return currency, lo + at
+
+
 def _build(
     text: str, value: Decimal, start: int, end: int, data: LocaleData, words: bool = False
 ) -> Quantity:
-    currency, qstart = (None, start) if words else _prefix_currency(text, start)
+    currency, qstart = (None, start) if words else _prefix(text, start)
     scale, scaled, kind, cur2, unit, qend = _suffix(text, end, data)
     if words and unit:
         unit, qend = None, end
@@ -395,9 +444,12 @@ def _build(
         currency = cur2 if currency is None or currency == cur2 else "MIXED"
     if data.code == "ar" and kind == "plain" and unit is None and not words:
         # Arabic text often has the sign first in typing order: "%20".
-        head = text[max(0, qstart - 2) : qstart]
-        if head.endswith("%") or head.endswith("% "):
-            kind, qstart = "percent", qstart - (1 if head.endswith("%") else 2)
+        head = text[max(0, qstart - 3) : qstart]
+        sign = len(head) - len(head.rstrip(" "))
+        body = head.rstrip(" ")
+        # "30% 6 months": that sign belongs to the 30 before it
+        if sign <= 1 and body.endswith("%") and not body[-2:-1].isdigit():
+            kind, qstart = "percent", qstart - sign - 1
     return Quantity(value * scale, kind, currency, qstart, qend, text[qstart:qend], unit, scaled)
 
 
@@ -424,14 +476,16 @@ def scan_target(text: str, locale: str) -> TargetScan:
         if odd:
             english.add(q.start)
         found.append(q)
-    taken = [(q.start, q.end) for q in found]
+    taken = bytearray(len(folded))
+    for q in found:
+        taken[q.start : q.end] = b"\x01" * (q.end - q.start)
     for m in data.word_rx.finditer(folded):
-        if any(a < m.end() and m.start() < b for a, b in taken):
+        if any(taken[m.start() : m.end()]):
             continue  # "5 miljoen": the scale word already belongs to the number before it
         value = data.word_value(m)
         q = _build(folded, value, m.start(), m.end(), data, words=True)
         base[q.start] = value
-        taken.append((q.start, q.end))
+        taken[q.start : q.end] = b"\x01" * (q.end - q.start)
         found.append(q)
     found.sort(key=lambda q: q.start)
     found = _propagate_range_units(folded, found, lambda q: base.get(q.start, q.value))

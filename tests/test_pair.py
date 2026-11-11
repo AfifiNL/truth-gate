@@ -311,3 +311,133 @@ def test_without_a_brand_file_the_server_is_as_in_v01(example_facts: Facts) -> N
             assert names == ["check_document", "list_facts"]
 
     anyio.run(go)
+
+
+# --- found by an independent review ------------------------------------------------------
+
+
+def test_arabic_forbidden_phrase_in_its_everyday_forms() -> None:
+    for target in ("استمتع بالشحن المجاني.", "نقدم شحنًا مجانيًا.", "شحن مجانى للجميع."):
+        report = run("Fast delivery.", target, market="ar", forbidden=["شحن مجاني"])
+        assert rules_hit(report) == ["forbidden"], target
+
+
+def test_a_forbidden_phrase_cannot_hide_behind_markup_or_invisible_characters() -> None:
+    for target in (
+        "Met gratis **verzending**.",
+        "Met gratis-verzending.",
+        "Met gra­tis verzending.",
+        "Met gratis​ verzending.",
+    ):
+        report = run("Fast delivery.", target, forbidden=["gratis verzending"])
+        assert rules_hit(report) == ["forbidden"], target
+
+
+def test_a_changed_currency_is_reported_when_the_new_one_is_recognised() -> None:
+    for target in ("Het kost € 49.", "Het kost 49 €.", "Het kost 49 Zwitserse frank."):
+        ok = run("It costs $49.", target).passed
+        assert ok is ("Zwitserse" in target), target  # an unknown wording reads as a plain 49
+    for target in ("يكلف 49 دولارًا.", "يكلف 49$.", "يكلف 49 ريالًا."):
+        assert not run("It costs €49.", target, market="ar").passed, target
+    assert run("It costs $5,000.", "يكلف 5,000$.", market="ar").passed
+
+
+def test_arabic_scale_word_after_eleven_to_ninety_nine() -> None:
+    assert not run("We serve 20 customers.", "نخدم 20 ألفًا من العملاء.", market="ar").passed
+    assert run("We serve 20,000 customers.", "نخدم 20 ألفًا من العملاء.", market="ar").passed
+    assert run(
+        "We moved 200 parcels for 2,000 customers.", "نقلنا مئتي طرد لألفي عميل.", market="ar"
+    ).passed
+
+
+def test_number_like_tokens_must_be_the_same_on_both_sides() -> None:
+    cases = [
+        ("Open from 09:00 to 17:00.", "Open van 09:00 tot 21:30."),
+        ("Support 24/7.", "Support 12/5."),
+        ("Results for Q3.", "Resultaten voor Q1."),
+        ("Runs on version 3.12.1.", "Draait op versie 2.0.0."),
+    ]
+    for source, target in cases:
+        report = run(source, target)
+        assert set(rules_hit(report)) == {"number"}, target
+    assert run(
+        "Open from 09:00 to 17:00, 24/7, for B2B in Q3.",
+        "Open van 09:00 tot 17:00, 24/7, voor B2B in Q3.",
+    ).passed
+
+
+def test_an_arabic_number_written_against_the_article_is_read() -> None:
+    assert run("Our 350 drivers.", "سائقونا الـ350.", market="ar").passed
+    assert not run("Our drivers.", "سائقونا الـ900.", market="ar").passed
+
+
+def test_source_terms_ending_in_y() -> None:
+    terms = [{"source": "delivery", "target": ["levering", "leveringen"]}]
+    assert not run(
+        "All deliveries are insured.", "Alle bezorgingen zijn verzekerd.", terms=terms
+    ).passed
+    assert run("All deliveries are insured.", "Alle leveringen zijn verzekerd.", terms=terms).passed
+
+
+def test_a_required_line_must_stand_on_its_own() -> None:
+    line = "Prijzen zijn exclusief btw."
+    for target in (
+        "Snel.\n\nNiet alle prijzen zijn exclusief btw.",
+        "Snel.\n\n<!-- Prijzen zijn exclusief btw. -->",
+    ):
+        assert rules_hit(run("Fast.", target, required_lines=[line])) == ["required-line"], target
+    for target in (
+        "Snel.\n\n**Prijzen zijn exclusief btw.**",
+        "Snel.\n> Prijzen zijn exclusief btw.",
+    ):
+        assert run("Fast.", target, required_lines=[line]).passed, target
+
+
+def test_a_name_inside_a_link_is_not_a_use_of_it() -> None:
+    source = "TrackBoard is new."
+    target = "[Volgbord](https://example.test/TrackBoard) is nieuw."
+    assert rules_hit(run(source, target, names=["TrackBoard"])) == ["name"]
+
+
+def test_formal_market_fails_on_jezelf_and_dutch_percent_is_a_percentage() -> None:
+    assert rules_hit(run("Treat yourself.", "Verwen jezelf.", address="formal")) == ["address"]
+    assert run("A 15% discount.", "15 percent korting.").passed
+    assert not run("Within 15 days.", "Binnen 15 percent.").passed
+
+
+def test_a_leading_percent_sign_belongs_to_one_number_only() -> None:
+    report = run("Down 30% in 6 months.", "انخفض 30% 6 أشهر.", market="ar")
+    assert report.passed
+
+
+def test_an_arabic_term_that_starts_with_hamza_and_lam_keeps_its_letters() -> None:
+    terms = [{"source": "dairy", "target": ["ألبان"]}]
+    assert not run("Fresh dairy.", "بان طازج.", market="ar", terms=terms).passed
+    assert run("Fresh dairy.", "ألبان طازجة.", market="ar", terms=terms).passed
+
+
+def test_a_range_ending_in_a_scaled_zero_does_not_crash() -> None:
+    for source, target in (("From 5-0 million.", "Van 5-0 miljoen."), ("3-0k", "من 5-0 مليون")):
+        run(source, target, market="ar" if "من" in target else "nl-NL")
+
+
+def test_many_unmatched_numbers_stay_fast() -> None:
+    import time
+
+    source = " ".join(str(n) for n in range(100_000, 108_000))
+    target = " ".join(str(n) for n in range(200_000, 208_000))
+    started = time.perf_counter()
+    report = run(source, target)
+    assert len(report.findings) == 16_000
+    assert time.perf_counter() - started < 5
+    started = time.perf_counter()
+    run("x", "5 vijf " * 16_000)
+    assert time.perf_counter() - started < 5
+
+
+def test_brand_yaml_with_odd_shapes_is_a_brand_error(tmp_path: Path) -> None:
+    for i, text in enumerate(("? [a]\n: b\n", "[" * 3000)):
+        path = tmp_path / f"b{i}.yaml"
+        path.write_text(text, encoding="utf-8")
+        with pytest.raises(BrandError, match="not valid YAML"):
+            load_brand(path)

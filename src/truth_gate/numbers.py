@@ -290,7 +290,10 @@ def _propagate_range_units(
             kind, currency, unit = b.kind, b.currency, b.unit
         value, scaled = a.value, a.scaled
         if not a.scaled and b.scaled:
-            scale = b.value / (unscaled(b) if unscaled else _unscaled(text, b))
+            base = unscaled(b) if unscaled else _unscaled(text, b)
+            if base == 0:  # "5-0 million": nothing to carry over
+                continue
+            scale = b.value / base
             if a.value * scale <= b.value:
                 value, scaled = a.value * scale, True
         out[i] = Quantity(value, kind, currency, a.start, a.end, a.text, unit, scaled)

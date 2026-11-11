@@ -36,10 +36,12 @@
 70 = سبعون | سبعين
 80 = ثمانون | ثمانين
 90 = تسعون | تسعين
-# dual forms of numbers
-200 = مئتان | مئتين | مائتان | مائتين
-2000 = ألفان | ألفين
-2000000 = مليونان | مليونين
+# dual forms of numbers, and the forms they take before a noun ("مئتي طرد", "ألفي عميل").
+# "ألفا" and "مليونا" are left out: without diacritics they are also the accusative of one
+# thousand and one million.
+200 = مئتان | مئتين | مائتان | مائتين | مئتا | مئتي | مائتا | مائتي
+2000 = ألفان | ألفين | ألفي
+2000000 = مليونان | مليونين | مليوني
 
 [dual-nouns]
 # A dual noun says "two" without a number word: "ساعتين" is two hours. Only the nouns listed
@@ -65,10 +67,11 @@
 
 [scale-words]
 # after a number: "5 آلاف", "3 ملايين", "2 مليار"
+# the forms ending in ًا follow 11 to 99: "20 ألفًا" is twenty thousand
 100 = مئة | مائة
-1000 = ألف | آلاف
-1000000 = مليون | ملايين
-1000000000 = مليار | مليارات
+1000 = ألف | آلاف | ألفًا
+1000000 = مليون | ملايين | مليونًا
+1000000000 = مليار | مليارات | مليارًا
 
 [bare-scale]
 # a number on their own, singular only: "ألف عميل" is a thousand customers,
@@ -83,11 +86,13 @@
 
 [currency-words]
 EUR = يورو
-USD = دولار | دولارات
+USD = دولار | دولارات | دولارًا
+SAR = ريال | ريالات | ريالًا
+AED = درهم | دراهم | درهمًا
 
 [number-particles]
-# may be written directly in front of digits: "ب20", "و5", "ل3"
-و | ف | ب | ل | ك | وب | ول | فب | فل
+# may be written directly in front of digits: "ب20", "و5", "ل3", "الـ20" (the 20)
+و | ف | ب | ل | ك | وب | ول | فب | فل | ال | وال | بال | لل | وبال | ولل
 
 [pronoun-suffixes]
 # attached to the last word of a term: "شحنتك" (your shipment) still uses the term "شحنة".

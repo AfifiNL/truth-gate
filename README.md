@@ -223,19 +223,26 @@ validates a brand file and lists its markets. All example content is fictional.
    whole document. A percentage must stay a percentage. Money must keep its currency, but money
    or a glued unit on one side may be a plain number on the other, because the target may write
    the currency or unit in words the scanner does not know. When one number replaced another,
-   the finding names both.
+   the finding names both. Number-like tokens that are not read as quantities (a time such as
+   `09:00`, `24/7`, a version, a name such as `Q3` or `B2B`) must be the same text, the same
+   number of times, on both sides.
 2. **name.** Each `do_not_translate` name must occur in the target as written, at least as
-   often as in the source. A Dutch genitive (`ExampleFreights`) and an Arabic particle written
+   often as in the source, counted outside code and URLs. A Dutch genitive (`ExampleFreights`) and an Arabic particle written
    against the name count as the name.
 3. **term.** When the source contains a `source` term (singular or plural), the target must
    contain one of its `target` forms at least once. It is not counted per occurrence. Dutch: the listed forms, as whole words. Arabic: see
    below.
-4. **forbidden.** A `forbidden` phrase anywhere in the target fails, as a whole phrase.
-5. **required-line.** Every `required_lines` entry must be in the target, compared after
-   collapsing whitespace and ignoring case.
+4. **forbidden.** A `forbidden` phrase anywhere in the target fails, as a whole phrase. Its
+   words may be joined by whitespace, Markdown emphasis marks or a hyphen.
+5. **required-line.** Every `required_lines` entry must stand in the target as a line or a
+   paragraph of its own, outside comments, compared after collapsing whitespace and ignoring
+   case and Markdown decoration. The same words inside a longer sentence do not count.
 6. **address** (Dutch, when `address` is set). `informal` fails on `u`, `uw`, `uzelf`; `formal`
-   fails on `je`, `jij`, `jou`, `jouw`, `jullie`. An abbreviation such as `a.u.b.` is not a
-   pronoun.
+   fails on `je`, `jij`, `jou`, `jouw`, `jullie`, `jezelf`. An abbreviation such as `a.u.b.`
+   is not a pronoun.
+
+Before any rule runs, both texts are put in Unicode NFC and stripped of invisible characters
+(soft hyphen, zero-width space and joiners), so a phrase cannot hide behind them.
 
 A **format** warning (Dutch) marks a number written the English way (`1.5`). Warnings never
 fail; `--strict` makes them fail. Numbers in code, comments, URLs and link targets are not
@@ -263,7 +270,8 @@ The word lists are data files a speaker of the language can read and correct:
 
 Before anything is matched, Arabic text is folded: Unicode direction marks and isolates are
 removed (so a Latin name wrapped in them still matches), diacritics and the elongation character
-are removed, and the alef forms become one. Findings still point at the original text.
+are removed, the alef forms become one, and a final alef maqsura is read as ya. Findings still
+point at the original text.
 
 - A number word, a term or a forbidden phrase may carry one attached particle from a fixed
   list: the conjunctions, the attached prepositions and the definite article
@@ -271,6 +279,10 @@ are removed, and the alef forms become one. Findings still point at the original
 - For **terms** the definite article is ignored on every word (`شركة نقل` is the term
   `شركة النقل`), and the last word may carry a pronoun suffix (`شحنتك`, "your shipment", uses
   the term `شحنة`).
+- For **forbidden phrases** a word listed without the article also matches with it (`شحن مجاني`
+  matches `الشحن المجاني`), but a listed article must be there: `الأرخص` (the cheapest) does
+  not match `أرخص` (cheaper).
+- A word of a term or phrase may end in the alef of the indefinite accusative (`شحنًا مجانيًا`).
 - A few short number words take no particle except the conjunction: `ست` is six, and `لست`
   ("I am not") must not be read as "for six".
 
@@ -483,7 +495,9 @@ required-line violation, and missed both name violations. Its 8 false alarms:
 Three of the 8 are in the `rules` half, which is the text a reviewer would really receive: 3 of
 40 clean documents failed. The Monday reading was a defect, not a known limit, and was fixed
 after the run (the masculine forms of "two" no longer take the article); the last row shows the
-result and is not a blind number. The other six are limits listed below. The two misses are the
+result and is not a blind number. An independent review of the code after the run led to more
+fixes ([DESIGN.md](docs/DESIGN.md) lists them); they changed no outcome in either half. The
+other six are limits listed below. The two misses are the
 transliteration written next to a kept name, also listed below.
 
 One thing the six rules do not cover at all: one Arabic `rules` document contains two Hebrew
@@ -554,10 +568,12 @@ both halves are a regression set: `make check` fails when a document's outcome c
 - A spelled-out number outside the word lists is not read, and the source's number is then
   reported as missing (a false alarm): long Dutch compounds (`driehonderdvijftig`), Arabic
   hundreds written as one word, and an Arabic dual noun that is not in the list.
-- A clock time written the local way ("6 pm" as `18.00 uur`, "8" as `08:00`) is reported as a
-  changed or missing number (a false alarm).
-- A currency converted during localisation (US dollars to euros) is reported as a changed
-  number.
+- A clock time written the local way ("6 pm" as `18.00 uur`, "8" as `08:00`, `09:00` as
+  `9.00 uur`) is reported as a changed or missing number (a false alarm).
+- A currency converted during localisation is reported only when the scanner recognises the
+  new currency: a symbol, an ISO code or a listed word directly at the number. A wording it does
+  not know (`49 Zwitserse frank`) reads as a plain 49 and passes.
+- A sign is not read: `-5%` and `5%` are the same number.
 - Month names are not read as numbers, and slashed dates are skipped on both sides, so a changed
   month passes.
 - It does not detect a paragraph left untranslated.

@@ -24,7 +24,7 @@ PAIRS: dict[str, tuple[str, str, str]] = {
     "s1": (
         "ExampleFreight moved 1,200 shipments a day in 2024, and 98.5% arrived on time.",
         "ExampleFreight verwerkte in 2024 1.200 zendingen per dag, en 98,5% kwam op tijd aan.",
-        "نقلت ExampleFreight في عام 2024 نحو 1,200 شحنة يوميًا، ووصل 98.5% منها في الموعد.",
+        "نقلت ExampleFreight في عام 2024 1,200 شحنة يوميًا، ووصل 98.5% منها في الموعد.",
     ),
     "s2": (
         "TrackBoard plans start at €49 per month for teams of up to twelve people.",
@@ -43,7 +43,7 @@ PAIRS: dict[str, tuple[str, str, str]] = {
     ),
     "s5": (
         "Customers who switched to TrackBoard cut late deliveries by 30% within six months.",
-        "Klanten die overstapten op TrackBoard hadden binnen zes maanden 30% minder late "
+        "Klanten die overstapten op TrackBoard hadden binnen zes maanden 30% minder te late "
         "leveringen.",
         "العملاء الذين انتقلوا إلى TrackBoard خفّضوا التسليمات المتأخرة بنسبة 30% خلال ستة أشهر.",
     ),

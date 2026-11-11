@@ -60,12 +60,14 @@
 9 = negen
 
 [percent-words]
-procent | pct
+procent | percent | pct
 
 [currency-words]
 EUR = euro | euro's
 USD = dollar | dollars
 GBP = pond
+CHF = frank | franken
+JPY = yen
 
 [ordinal-suffixes]
 # "1e", "2de", "20ste"

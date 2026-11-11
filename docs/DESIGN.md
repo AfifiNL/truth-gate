@@ -264,3 +264,50 @@ weakest part of the experiment: the reader who labelled the documents also wrote
 The hashes and the commit order show the labels came first; they do not make the reader
 independent.
 
+## Independent review
+
+A reviewer with no part in the build read the branch and tried to make wrong targets pass. What
+it confirmed, and what was done:
+
+- **Arabic forbidden phrases passed in their everyday forms** (with the article, with the
+  accusative ending, with a final ى). A word listed without the article now also matches with
+  it, a word may end in the accusative alef, and ى folds to ي.
+- **A changed currency passed** when written as `€` plus a no-break space, as a symbol after
+  the number, or in the Arabic accusative. All three are read now. A wording the lists do not
+  know still reads as a plain number: the README limit said more than the code did and was
+  corrected.
+- **An Arabic scale word in the accusative was dropped**, so 20 could become 20,000. Added,
+  with the dual forms used before a noun. "ألفا" on its own is left unread: without
+  diacritics it is one thousand or two thousand.
+- **Tokens skipped on both sides were never compared.** Times, `24/7`, versions and names such
+  as `Q3` are now compared as text.
+- **A number written against the Arabic article** (`الـ900`) was invisible. The article joined
+  the particles allowed before digits.
+- **`deliveries` did not trigger the term `delivery`.** Source terms ending in a consonant
+  and y now match their -ies plural.
+- **A forbidden phrase could hide** behind Markdown emphasis, a hyphen, a soft hyphen or a
+  zero-width character. Texts are cleaned first, and the words of a phrase may be joined by
+  those marks.
+- **A required line counted inside a comment or a longer sentence.** It must now stand as its
+  own line or paragraph.
+- **A name inside a URL counted as a use of it.** Names are counted on the masked text.
+- **A crash**: a range ending in a scaled zero ("5-0 million") divided by zero. This was in
+  v0.1 as well.
+- **Slow on many unmatched numbers**: matching was quadratic. Quantities are now indexed by
+  value, and the overlap check uses a byte mask.
+- **Two YAML shapes escaped the loader's error** (an unhashable key, very deep nesting), in the
+  facts loader too.
+- Smaller: `jezelf` in a formal market, Dutch `percent`, a leading `%` taken from the number
+  before it, an Arabic term that starts with a hamza and a lam losing those letters.
+
+Each has a test. None changed an outcome in the pair corpus or the experiment.
+
+More differences from the spec that the review pointed out:
+
+- A finding names the line in the source, not the paragraph. Paragraphs are only used to pair
+  a changed number with the one it replaced.
+- Particles are allowed in front of names, forbidden phrases and number words as well, not only
+  terms.
+- Left as limits: a sign in front of a number, a currency in words the lists do not know, a
+  time rewritten in another notation.
+

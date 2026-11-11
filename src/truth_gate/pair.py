@@ -20,11 +20,18 @@ Six rules. Errors fail the pair; warnings never do.
 
 A finding about something missing from the target has no place in the target to point at, so
 it points at the place in the source instead (`side: source`). Line 0 means the whole text.
+
+Both texts are first put in Unicode NFC and stripped of invisible characters (soft hyphen,
+zero-width space and joiners, word joiner, byte-order mark), so a phrase cannot hide behind
+them. Lines never change; a column counts the characters that are left.
 """
 
 from __future__ import annotations
 
 import re
+import unicodedata
+from bisect import bisect_left
+from collections import Counter, defaultdict
 from decimal import Decimal
 from typing import Literal
 
@@ -38,11 +45,12 @@ from truth_gate.locales import (
     fold_text,
     language_of,
     load,
+    phrase_pattern,
     scan_target,
     term_pattern,
     unfold,
 )
-from truth_gate.numbers import Quantity, scan
+from truth_gate.numbers import Quantity, Skipped, scan
 from truth_gate.report import Report, Severity
 from truth_gate.text import line_col, mask
 
@@ -51,7 +59,17 @@ Rule = Literal[
 ]
 # Dutch second person. A "u" inside an abbreviation such as "a.u.b." is not a pronoun.
 _NL_FORMAL = re.compile(r"(?<![\w.])(?:u|uw|uzelf)(?!\w)(?!\.\w)", re.I)
-_NL_INFORMAL = re.compile(r"(?<![\w.])(?:je|jij|jou|jouw|jullie)(?!\w)(?!\.\w)", re.I)
+_NL_INFORMAL = re.compile(
+    r"(?<![\w.])(?:je|jij|jou|jouw|jullie|jezelf|jijzelf)(?!\w)(?!\.\w)", re.I
+)
+_INVISIBLE = dict.fromkeys(map(ord, "\u00ad\u200b\u200c\u200d\u2060\ufeff"))
+_DECORATION = " \t*_>#-"
+_TOKEN_WORD = re.compile(r"[\w.:/,-]*")
+
+
+def clean(text: str) -> str:
+    """NFC, without invisible characters."""
+    return unicodedata.normalize("NFC", text).translate(_INVISIBLE)
 
 
 class PairFinding(BaseModel):
@@ -136,9 +154,13 @@ class PairChecker:
         self._names = [
             (
                 name,
-                re.compile(r"(?<!\w)" + re.escape(name) + r"(?!\w)"),
+                re.compile(r"(?<!\w)" + re.escape(clean(name)) + r"(?!\w)"),
                 re.compile(
-                    r"(?<!\w)" + particle + re.escape(fold_text(name, self.lang)) + tail + r"(?!\w)"
+                    r"(?<!\w)"
+                    + particle
+                    + re.escape(fold_text(clean(name), self.lang))
+                    + tail
+                    + r"(?!\w)"
                 ),
             )
             for name in brand.do_not_translate
@@ -148,16 +170,14 @@ class PairChecker:
                 term.source,
                 term.target,
                 re.compile(
-                    r"(?<!\w)(?:"
-                    + "|".join(self._phrase(s, "en") for s in term.source)
-                    + r")(?:s|es)?(?!\w)",
+                    r"(?<!\w)(?:" + "|".join(map(self._source_term, term.source)) + r")(?!\w)",
                     re.I,
                 ),
                 re.compile(
                     r"(?<!\w)"
                     + particle
                     + "(?:"
-                    + "|".join(term_pattern(t, self._data) for t in term.target)
+                    + "|".join(term_pattern(clean(t), self._data) for t in term.target)
                     + r")(?!\w)",
                     re.I,
                 ),
@@ -168,15 +188,23 @@ class PairChecker:
             (
                 phrase,
                 re.compile(
-                    r"(?<!\w)" + particle + self._phrase(phrase, self.lang) + r"(?!\w)", re.I
+                    r"(?<!\w)" + particle + phrase_pattern(clean(phrase), self._data) + r"(?!\w)",
+                    re.I,
                 ),
             )
             for phrase in self.market.forbidden
         ]
 
     @staticmethod
-    def _phrase(phrase: str, lang: str) -> str:
-        return re.escape(fold_text(phrase.strip(), lang)).replace(r"\ ", r"\s+")
+    def _source_term(term: str) -> str:
+        """An English term, singular or plural: shipment(s), box(es), delivery/deliveries."""
+        words = [re.escape(w) for w in term.split()]
+        last = term.split()[-1]
+        if len(last) > 2 and last[-1] in "yY" and last[-2].lower() not in "aeiou":
+            words[-1] = re.escape(last[:-1]) + "(?:y|ies)"
+        else:
+            words[-1] += "(?:s|es)?"
+        return r"\s+".join(words)
 
     def check(self, source: str, target: str) -> PairReport:
         for name, doc in (("source", source), ("target", target)):
@@ -201,9 +229,12 @@ class PairChecker:
                         f"{source_report.errors} error(s)",
                     )
                 )
-        n_source, n_target = self._numbers(source, target, findings)
+        source, target = clean(source), clean(target)
+        masked_source, masked_target = mask(source), mask(target)
+        n_source, n_target = self._numbers(source, target, masked_source, masked_target, findings)
         folded, index = fold(target, self.lang)
-        self._names_rule(source, folded, findings)
+        folded_masked = fold_text(masked_target, self.lang)
+        self._names_rule(source, masked_source, folded_masked, findings)
         self._terms_rule(source, folded, findings)
         for phrase, rx in self._forbidden:
             for m in rx.finditer(folded):
@@ -220,9 +251,9 @@ class PairChecker:
                         message=f"forbidden phrase '{phrase}'",
                     )
                 )
-        flat = " ".join(folded.split()).casefold()
+        present = self._lines_and_paragraphs(folded_masked)
         for required in self.market.required_lines:
-            if " ".join(fold_text(required, self.lang).split()).casefold() not in flat:
+            if self._flat(fold_text(clean(required), self.lang)) not in present:
                 findings.append(
                     PairFinding(
                         rule="required-line",
@@ -234,7 +265,7 @@ class PairChecker:
                         message=f"required line is missing: '{required}'",
                     )
                 )
-        self._address(target, findings)
+        self._address(target, masked_target, findings)
         findings.sort(key=lambda f: (f.side, f.line == 0, f.line, f.column, f.rule))
         errors = sum(f.severity == "error" for f in findings)
         return PairReport(
@@ -248,34 +279,65 @@ class PairChecker:
             source_report=source_report,
         )
 
-    def _numbers(self, source: str, target: str, findings: list[PairFinding]) -> tuple[int, int]:
-        src = scan(mask(source))[0]
-        tgt_scan = scan_target(mask(target), self.lang)
+    @staticmethod
+    def _flat(text: str) -> str:
+        return " ".join(text.strip(_DECORATION).split()).casefold()
+
+    @classmethod
+    def _lines_and_paragraphs(cls, text: str) -> set[str]:
+        """Every line and every paragraph, without Markdown decoration: a required line must
+        stand as one of them, not inside another sentence or a comment."""
+        out: set[str] = set()
+        paragraph: list[str] = []
+        for line in [*text.split("\n"), ""]:
+            if line.strip():
+                out.add(cls._flat(line))
+                paragraph.append(line)
+            elif paragraph:
+                out.add(cls._flat(" ".join(paragraph)))
+                paragraph = []
+        return out
+
+    def _numbers(
+        self,
+        source: str,
+        target: str,
+        masked_source: str,
+        masked_target: str,
+        findings: list[PairFinding],
+    ) -> tuple[int, int]:
+        src, src_skipped = scan(masked_source)
+        tgt_scan = scan_target(masked_target, self.lang)
         tgt = tgt_scan.quantities
+        # Match by value through an index, so the cost does not grow with the square of the
+        # number of quantities: identical kinds first, then compatible ones.
+        by_value: dict[Decimal, list[int]] = defaultdict(list)
+        for j, t in enumerate(tgt):
+            by_value[t.value].append(j)
+        matched_t: set[int] = set()
         left_s = list(range(len(src)))
-        left_t = list(range(len(tgt)))
         for same in (_identical, _compatible):
-            for i in list(left_s):
-                j = next(
-                    (j for j in left_t if tgt[j].value == src[i].value and same(src[i], tgt[j])),
-                    None,
-                )
-                if j is not None:
-                    left_s.remove(i)
-                    left_t.remove(j)
+            still: list[int] = []
+            for i in left_s:
+                bucket = by_value.get(src[i].value, [])
+                hit = next((k for k in bucket if same(src[i], tgt[k])), None)
+                if hit is None:
+                    still.append(i)
+                else:
+                    bucket.remove(hit)
+                    matched_t.add(hit)
+            left_s = still
+        left_t = [j for j in range(len(tgt)) if j not in matched_t]
         aligned = _count_paragraphs(source) == _count_paragraphs(target)
         para_s = _paragraph_of(source) if aligned else []
         para_t = _paragraph_of(target) if aligned else []
-        explained: set[int] = set()
+        open_s = _Open(src, left_s, para_s)
         for j in left_t:
             t = tgt[j]
             line, col = line_col(target, t.start)
             hint = ""
-            partner = self._partner(
-                t, [i for i in left_s if i not in explained], src, para_s, para_t
-            )
+            partner = open_s.take(t, para_t[t.start] if para_t else None)
             if partner is not None:
-                explained.add(partner)
                 s = src[partner]
                 s_line, _ = line_col(source, s.start)
                 hint = f"; the source has {s.label()} (line {s_line})"
@@ -294,9 +356,7 @@ class PairChecker:
                     message=f"{t.label()} is not in the source{hint}",
                 )
             )
-        for i in left_s:
-            if i in explained:
-                continue
+        for i in open_s.remaining():
             s = src[i]
             line, col = line_col(source, s.start)
             findings.append(
@@ -310,6 +370,7 @@ class PairChecker:
                     message=f"{s.label()} is missing from the target",
                 )
             )
+        self._tokens(source, target, masked_source, src_skipped, tgt_scan.skipped, findings)
         for q in tgt_scan.english_format:
             line, col = line_col(target, q.start)
             findings.append(
@@ -326,31 +387,80 @@ class PairChecker:
             )
         return len(src), len(tgt)
 
-    @staticmethod
-    def _partner(
-        t: Quantity,
-        candidates: list[int],
-        src: list[Quantity],
-        para_s: list[int],
-        para_t: list[int],
-    ) -> int | None:
-        """The unmatched source number this unmatched target number most likely replaced."""
-        for i in candidates:  # same value, another kind ("20%" became "20")
-            if src[i].value == t.value:
-                return i
-        for i in candidates:  # a thousand times off: read in the other language's format
-            if src[i].value in (t.value * 1000, t.value / Decimal(1000)):
-                return i
-        if para_s:
-            same = [i for i in candidates if para_s[src[i].start] == para_t[t.start]]
-            if len(same) == 1:
-                return same[0]
-        return None
+    def _tokens(
+        self,
+        source: str,
+        target: str,
+        masked_source: str,
+        src_skipped: list[Skipped],
+        tgt_skipped: list[Skipped],
+        findings: list[PairFinding],
+    ) -> None:
+        """Number-like tokens the scanner does not read as quantities (times, 24/7, versions,
+        names such as Q3 or B2B) must be the same on both sides, compared as text."""
+        folded_target, index = fold(mask(target), self.lang)
 
-    def _names_rule(self, source: str, folded: str, findings: list[PairFinding]) -> None:
+        def keyed(
+            text: str, skipped: list[Skipped], fold_index: list[int] | None
+        ) -> list[tuple[str, int]]:
+            out = []
+            for s in skipped:
+                start = s.start
+                if fold_index is not None:  # offsets are in the original; find the folded one
+                    start = _folded_offset(fold_index, s.start)
+                lo = start
+                while lo > 0 and (text[lo - 1].isalnum() or text[lo - 1] in "-_"):
+                    lo -= 1
+                m = _TOKEN_WORD.match(text, start)
+                word = text[lo : m.end() if m else start].rstrip(".,:/-")
+                out.append((word.casefold(), s.start))
+            return out
+
+        src_keys = keyed(masked_source, src_skipped, None)
+        tgt_keys = keyed(folded_target, tgt_skipped, index)
+        want = Counter(k for k, _ in src_keys)
+        have = Counter(k for k, _ in tgt_keys)
+        reported: set[str] = set()
+        for key, offset in src_keys:
+            if want[key] > have[key] and key not in reported:
+                reported.add(key)
+                line, col = line_col(source, offset)
+                findings.append(
+                    PairFinding(
+                        rule="number",
+                        severity="error",
+                        side="source",
+                        line=line,
+                        column=col,
+                        text=key,
+                        message=f"'{key}' is in the source {want[key]} time(s) and in the "
+                        f"target {have[key]}",
+                    )
+                )
+        for key, offset in tgt_keys:
+            if have[key] > want[key] and key not in reported:
+                reported.add(key)
+                line, col = line_col(target, offset)
+                findings.append(
+                    PairFinding(
+                        rule="number",
+                        severity="error",
+                        side="target",
+                        line=line,
+                        column=col,
+                        text=key,
+                        message=f"'{key}' is in the target {have[key]} time(s) and in the "
+                        f"source {want[key]}",
+                    )
+                )
+
+    def _names_rule(
+        self, source: str, masked_source: str, folded_masked: str, findings: list[PairFinding]
+    ) -> None:
+        # Counted outside code and URLs: a link that contains the name is not a use of it.
         for name, in_source, in_target in self._names:
-            hits = list(in_source.finditer(source))
-            have = len(in_target.findall(folded))
+            hits = list(in_source.finditer(masked_source))
+            have = len(in_target.findall(folded_masked))
             if len(hits) > have:
                 line, col = line_col(source, hits[0].start())
                 findings.append(
@@ -385,11 +495,11 @@ class PairChecker:
                 )
             )
 
-    def _address(self, target: str, findings: list[PairFinding]) -> None:
+    def _address(self, target: str, masked_target: str, findings: list[PairFinding]) -> None:
         if self.market.address is None:
             return
         wrong = _NL_FORMAL if self.market.address == "informal" else _NL_INFORMAL
-        for n, m in enumerate(wrong.finditer(mask(target))):
+        for n, m in enumerate(wrong.finditer(masked_target)):
             if n == 20:  # enough to act on; the rest are the same mistake
                 break
             line, col = line_col(target, m.start())
@@ -405,3 +515,46 @@ class PairChecker:
                     f"; this market is addressed {self.market.address}ly",
                 )
             )
+
+
+def _folded_offset(index: list[int], original: int) -> int:
+    """The folded offset of an original offset (the index is sorted)."""
+    return bisect_left(index, original)
+
+
+class _Open:
+    """Source quantities that found no match, looked up without scanning all of them: by value
+    (the kind changed), by a thousand times the value (read in the other format), and by
+    paragraph (the only unmatched number there was probably replaced)."""
+
+    def __init__(self, src: list[Quantity], left: list[int], para_of: list[int]):
+        self._src = src
+        self._para_of = para_of
+        self._left = dict.fromkeys(left)
+        self._by_value: dict[Decimal, list[int]] = defaultdict(list)
+        self._by_para: dict[int, list[int]] = defaultdict(list)
+        for i in left:
+            self._by_value[src[i].value].append(i)
+            if para_of:
+                self._by_para[para_of[src[i].start]].append(i)
+
+    def _first(self, candidates: list[int]) -> int | None:
+        return next((i for i in candidates if i in self._left), None)
+
+    def take(self, t: Quantity, paragraph: int | None) -> int | None:
+        found = self._first(self._by_value.get(t.value, []))
+        if found is None:
+            for value in (t.value * 1000, t.value / Decimal(1000)):
+                found = self._first(self._by_value.get(value, []))
+                if found is not None:
+                    break
+        if found is None and paragraph is not None:
+            same = [i for i in self._by_para.get(paragraph, []) if i in self._left]
+            if len(same) == 1:
+                found = same[0]
+        if found is not None:
+            del self._left[found]
+        return found
+
+    def remaining(self) -> list[int]:
+        return list(self._left)
