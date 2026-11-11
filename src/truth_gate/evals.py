@@ -15,8 +15,10 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
+from truth_gate.brand import load_brand
 from truth_gate.checker import Checker
 from truth_gate.facts import load_facts
+from truth_gate.pair import PairChecker
 
 EXPECTED_CHECK = {
     "wrong_number": "number",
@@ -93,6 +95,57 @@ def evaluate_llm(
     for scope in ("all", *splits):
         sel = [r for r in rows if scope == "all" or r["split"] == scope]
         scores[scope] = _rates(sel)
+    return scores, rows
+
+
+# The rule a planted pair error must be caught by (pair corpus and localisation set).
+EXPECTED_RULE = {
+    "changed_number": "number",
+    "source_format": "number",
+    "dropped_number": "number",
+    "added_number": "number",
+    "percent_lost": "number",
+    "changed_meaning": "number",
+    "swapped_numbers": "number",
+    "translated_name": "name",
+    "missing_term": "term",
+    "forbidden": "forbidden",
+    "missing_line": "required-line",
+    "address": "address",
+}
+
+
+def evaluate_pairs(
+    root: Path, splits: tuple[str, ...] = ("dev", "test")
+) -> tuple[dict[str, dict[str, float]], list[dict[str, Any]]]:
+    """Score the hand-built pair corpus (root/pairs): an English source, a Dutch or Arabic
+    target, clean or with one planted error."""
+    brand = load_brand(root / "pairs" / "brand.yaml")
+    checkers = {name: PairChecker(brand, name) for name in brand.markets}
+    lines = (root / "pairs" / "cases.jsonl").read_text(encoding="utf-8").splitlines()
+    rows: list[dict[str, Any]] = []
+    for c in map(json.loads, lines):
+        if c["split"] not in splits:
+            continue
+        report = checkers[c["market"]].check(c["source"], c["target"])
+        rules = sorted({f.rule for f in report.findings if f.severity == "error"})
+        ok = report.passed if c["kind"] == "clean" else EXPECTED_RULE[c["kind"]] in rules
+        rows.append(
+            {
+                "id": c["id"],
+                "split": c["split"],
+                "kind": c["kind"],
+                "hard": c["hard"],
+                "market": c["market"],
+                "ok": ok,
+                "passed": report.passed,
+                "error_checks": rules,
+            }
+        )
+    scores = {
+        scope: _rates([r for r in rows if scope == "all" or r["split"] == scope])
+        for scope in ("all", *splits)
+    }
     return scores, rows
 
 
@@ -182,6 +235,15 @@ def run_eval(root: Path, split: str, update_baseline: bool, out: Path | None) ->
         llm_shown = llm_scores if split == "all" else {splits[0]: llm_scores[splits[0]]}
         _print(llm_shown, llm_rows)
         problems += _gate_or_record(root / "llm", llm_shown, llm_rows, update_baseline, "llm ")
+    if (root / "pairs" / "cases.jsonl").exists():
+        pair_splits = ("dev", "test") if split == "all" else (split,)
+        print(f"hand-built pair set (evals/pairs; {', '.join(pair_splits)})")
+        pair_scores, pair_rows = evaluate_pairs(root, pair_splits)
+        pair_shown = pair_scores if split == "all" else {split: pair_scores[split]}
+        _print(pair_shown, pair_rows)
+        problems += _gate_or_record(
+            root / "pairs", pair_shown, pair_rows, update_baseline, "pairs "
+        )
     if update_baseline:
         return 0
     for p in problems:

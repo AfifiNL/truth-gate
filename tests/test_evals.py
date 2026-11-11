@@ -82,3 +82,13 @@ def test_split_dev_never_scores_the_held_out_half(tmp_path: Path) -> None:
         if k in {r["id"] for r in evals.evaluate_llm(root, ("heldout",))[1]}
     }
     assert {k: after["outcomes"][k] for k in held} == held
+
+
+def test_pair_corpus_is_built_from_its_script_and_only_hard_cases_miss() -> None:
+    script = ROOT / "evals" / "pairs" / "build_cases.py"
+    assert subprocess.run([sys.executable, str(script), "--check"], check=False).returncode == 0
+    scores, rows = evals.evaluate_pairs(ROOT / "evals")
+    assert scores["all"]["cases"] == len(rows) >= 50
+    assert {r["market"] for r in rows} == {"nl-NL", "ar"}
+    wrong = {r["id"] for r in rows if not r["ok"]}
+    assert wrong == {r["id"] for r in rows if r["hard"]}

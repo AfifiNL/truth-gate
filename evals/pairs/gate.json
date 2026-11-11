@@ -1,0 +1,6 @@
+{
+  "_comment": "Written after the dev split and before the test split was first run. The rates include the hard cases, which are written to be got wrong; the baseline pins every single outcome, so a new miss or false alarm fails the gate whatever the rates. Deterministic checker: tolerance 0.",
+  "min_catch_rate": 0.8,
+  "max_false_alarm_rate": 0.35,
+  "tolerance": 0.0
+}
