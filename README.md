@@ -403,6 +403,28 @@ single facts file; the errors are ones the model was asked to make, which are ea
 ones it makes by accident. It shows the checks work on model-written prose, not how often a
 model errs unprompted.
 
+### Pair corpus
+
+`evals/pairs/cases.jsonl` holds 52 hand-written pairs (30 Dutch, 22 Arabic), built by
+`evals/pairs/build_cases.py`: 14 clean pairs, 29 pairs that are a clean target with exactly one
+planted error, and 9 hard cases written to show a known limit. The planted errors are a changed
+number, a number left in the source's format, a dropped number, an added number, a percentage
+that lost its sign, a translated name, a missing term, a forbidden phrase, a missing required
+line and the wrong form of address.
+
+| | cases | handled as intended |
+|---|---|---|
+| clean pairs | 14 | 14 pass |
+| planted errors | 29 | 29 fail on the planted rule |
+| hard cases | 9 | 0 (3 errors pass, 6 clean pairs fail) |
+
+Counting the hard cases, the catch rate is 0.906 and the false-alarm rate 0.3. The floors in
+`evals/pairs/gate.json` were written after the dev split and before the test split was run, and
+the baseline pins every single outcome, so a new miss or false alarm fails `make check`.
+
+This set was written by the author of the checker. It is a regression gate and a description of
+behaviour, not an accuracy estimate. The Dutch has not been checked by a native speaker.
+
 ## Design in short
 
 - **Deterministic and explainable.** Every finding has a line, a column and a reason; every
