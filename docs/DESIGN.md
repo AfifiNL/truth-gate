@@ -164,3 +164,81 @@ API responses of this run were not kept.
 - No dates as a first-class kind (ISO dates are three numbers).
 - No per-fact allowed contexts or synonyms beyond what the fact sentence says.
 - English only.
+
+# v0.2: the pair check
+
+The spec is [SPEC-v0.2.md](SPEC-v0.2.md), written before the code. This part records the
+decisions and where the build differs from it.
+
+## Decisions
+
+**Truth flows one way.** Facts, then the English source, then the localised target. The target
+is compared with the source, never with the facts: a fact is an English sentence, and the
+context rule compares English words. A Dutch sentence shares none of them.
+
+**English reading is untouched.** `numbers.scan` takes a `locale`, and anything but `en` goes to
+`locales.scan_target`. The English path is the v0.1 code, and both v0.1 baselines are unchanged.
+
+**One token, two readings.** `1,200` is 1200 in English and 1.2 in Dutch. The Dutch reader
+follows Dutch rules without guessing what the writer meant, because the common error is a number
+copied from the source as it stands. The pair check then reports 1.2 against a source of 1200
+and says why. A dot that cannot be a thousands mark (`1.5`) is read as a decimal and reported as
+a warning: the value is right and the format is English.
+
+**Arabic is folded before anything is matched.** Direction marks, diacritics and the elongation
+character are removed, the alef forms become one, and Arabic-Indic and Persian digits and signs
+become ASCII. An index maps every folded character to its place in the original, so findings
+point at the text the writer sees. After folding, digits are read by the English rules.
+
+**A percentage must stay a percentage; a currency or a unit may become a plain number.** The
+scanner knows few currency words in Dutch and Arabic and no spaced units ("40 GB"). Demanding
+the same kind on both sides would fail true translations, so money or a unit on one side may be
+a plain number on the other. Two different currencies, or two different units, do not match.
+
+**A missing thing points at the source.** A number, name or term that is absent from the target
+has no place in the target, so the finding gives the line in the source (`side: source`).
+
+**Word lists are data.** Number words, scale words, percent words, currency words, particles and
+suffixes are in `data/nl.txt` and `data/ar.txt` with a comment per group, so a speaker of the
+language can review them without reading Python.
+
+## Where the build differs from the spec
+
+- **Source texts for the experiment were written by hand**, not generated. That spent no calls
+  and kept every number format and term under control.
+- **Dutch thousands by a space**: only a no-break or thin space groups digits. A plain space
+  would join "in 2019 300 mensen" into one number.
+- **Arabic number words go further than one to ten.** The first run on the dev half reported
+  "اثني عشر" (twelve) and "ساعتين" (two hours, a dual noun) as missing numbers. Added: eleven
+  to nineteen, the tens, a unit joined to a ten ("خمسة وعشرين"), and a short list of dual
+  nouns for time ("ساعتين", "شهرين"). A dual noun outside that list is still not read.
+- **Arabic terms match more than one stripped particle.** The dev half had "شركة نقل" for the
+  listed "شركة النقل" and "شحنتك" for "شحنة". For terms the definite article is now ignored on
+  every word, and the last word may carry a pronoun suffix (a final ة opens to ت). Forbidden
+  phrases keep the article: "الأرخص" (the cheapest) is not "أرخص" (cheaper).
+- **`truth-gate brand FILE`** validates a brand file. The skill needs it; the spec did not
+  list it.
+- **`list_facts` returns the whole brand file**, not one market's rules, because the tool has no
+  market argument.
+- **The skill walk-through** was recorded from an agent that was pointed at the skill file and
+  given a failing draft, not from a session where the skill loaded by itself.
+
+## What the dev half showed and what was left alone
+
+The checker first ran on the 80 dev documents after their labels were committed. It disagreed
+with 13 labels: 11 false alarms and 2 misses. Every one had been predicted in the label notes
+while reading. After the two changes above, 3 differ:
+
+- "between 8 and 12 in the morning" became "tussen 08:00 en 12:00 uur". Clock times are
+  skipped, so 8 and 12 are reported as missing. Matching a bare number to a clock time would let
+  a wrong time pass, so this stays a false alarm.
+- Twice the model wrote a transliteration and kept the name in brackets:
+  "إكزامبل فريت (ExampleFreight)". The name is there as often as in the source, so the count
+  rule passes. The checker cannot know what a transliteration of a name looks like. A brand that
+  sees this can add the transliteration to `forbidden`.
+
+The pair corpus has nine hard cases that pin these and the other known limits: a reversed
+meaning, two numbers swapped between nouns, an inflected forbidden phrase, a clock time, a long
+Dutch compound number, a name replaced by a pronoun, an unlisted Arabic dual, a suffix on a
+broken plural, and Arabic hundreds.
+
