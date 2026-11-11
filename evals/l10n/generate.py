@@ -11,7 +11,9 @@ variables in the environment); this script never reads, prints or stores credent
 Every request counts toward TG_MAX_LIVE_CALLS (default 0: no calls at all). SDK retries are off,
 so one request is one call. A failed call leaves a gap; running again requests only the ids
 missing from documents.jsonl. `TG_ONLY=s01-nl-bare` limits a run to the listed ids (a smoke
-test). Text is stored as returned, with the raw response, and never edited: labels live in
+test). Requests go out one at a time with a pause (`TG_WORKERS`, default 1; `TG_PAUSE_SECONDS`,
+default 4): the first run used three workers and no pause, and 43 requests were refused with
+HTTP 429. Text is stored as returned, with the raw response, and never edited: labels live in
 labels.jsonl.
 """
 
@@ -23,6 +25,7 @@ import json
 import os
 import sys
 import threading
+import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any
@@ -170,8 +173,9 @@ def main() -> int:
         }
         with lock:
             done[req["id"]] = row
+        time.sleep(float(os.environ.get("TG_PAUSE_SECONDS", "4")))
 
-    with ThreadPoolExecutor(max_workers=3) as pool:
+    with ThreadPoolExecutor(max_workers=int(os.environ.get("TG_WORKERS", "1"))) as pool:
         list(pool.map(run, todo))
 
     template = SYSTEM + json.dumps(MARKETS) + rules_block(brand, "nl-NL") + rules_block(brand, "ar")

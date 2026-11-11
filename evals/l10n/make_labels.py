@@ -50,7 +50,21 @@ DEV: dict[str, dict[str, str]] = {
     "s17-ar-bare": {"name": "ExampleFreight kept, but a transliteration was added before it"},
     "s18-nl-bare": {"address": "krijgt u"},
 }
-TEST: dict[str, dict[str, str]] = {}
+TEST: dict[str, dict[str, str]] = {
+    "s21-nl-bare": {"address": "uw vervoerder"},
+    "s21-ar-bare": {"term": "الناقل for carrier"},
+    "s22-nl-bare": {"term": "klantenportaal for customer portal"},
+    "s26-nl-bare": {"address": "U kunt", "term": "klantenportaal for customer portal"},
+    "s27-ar-bare": {"term": "ناقلونا for our carriers"},
+    "s28-nl-bare": {"term": "bezorgmoment for delivery window"},
+    "s28-ar-bare": {"term": "نافذة التسليم for delivery window"},
+    "s31-nl-bare": {"address": "bij u aan de deur"},
+    "s31-ar-bare": {"term": "الناقل for carrier"},
+    "s34-ar-bare": {"name": "ExampleFreight kept, but a transliteration was added before it"},
+    "s35-nl-bare": {"term": "bezorgmoment for delivery window"},
+    "s35-ar-bare": {"term": "نافذة التسليم for delivery window; الناقل for carrier"},
+    "s40-ar-bare": {"name": "ExampleFreight kept, but a transliteration was added before it"},
+}
 
 # Written while reading, before the checker ran: where it will probably disagree.
 NOTES: dict[str, str] = {
@@ -67,6 +81,19 @@ NOTES: dict[str, str] = {
     "s17-ar-bare": "the name is still there once, so the count rule will pass: expect a miss",
     "s20-ar-bare": "شركة نقل (indefinite form of the brand's term): expect a false alarm",
     "s20-ar-rules": "شركة نقل (indefinite form of the brand's term): expect a false alarm",
+    # test half, written after the dev tuning and before the checker ran on test
+    "s21-nl-bare": "4 pm written as 16.00 uur: expect a false alarm on the number",
+    "s21-nl-rules": "4 pm written as 16:00 uur: expect a false alarm on the number",
+    "s24-ar-bare": "1 written as واحد without a scale word: expect a false alarm on 1",
+    "s30-nl-bare": "zendingsgeschiedenis (the brand's word inside a compound): expect a false "
+    "alarm on the term",
+    "s30-nl-rules": "zendinghistorie (the brand's word inside a compound): expect a false alarm "
+    "on the term",
+    "s30-ar-rules": "two Hebrew letters inside an Arabic word: a real defect that none of the "
+    "six rules covers",
+    "s33-ar-bare": "two people as a dual that is not listed (شخصين): expect a false alarm on 2",
+    "s34-ar-bare": "the name is still there once, so the count rule will pass: expect a miss",
+    "s40-ar-bare": "the name is still there once, so the count rule will pass: expect a miss",
 }
 
 

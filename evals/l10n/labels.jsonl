@@ -78,3 +78,83 @@
 {"id": "s20-ar-rules", "sha256": "6c81940151dcee059b00e183c3276d68bcad46e21e549e90b71df1ebac9bf2f4", "violations": {}, "note": "شركة نقل (indefinite form of the brand's term): expect a false alarm"}
 {"id": "s20-nl-bare", "sha256": "f27e718c8feacdc55a9b19d844377663fd10ffc163fc0558736318f22c376d96", "violations": {"required-line": "bare prompt: the model was not given the line"}}
 {"id": "s20-nl-rules", "sha256": "1d5d009075d59706c4a3132d5b1b487559213854903146a65e8e1850a48b3076", "violations": {}}
+{"id": "s21-ar-bare", "sha256": "73045142655269ada51e7677e8d3ed117bced95001c82021846ec9e7e69aa92d", "violations": {"term": "الناقل for carrier", "required-line": "bare prompt: the model was not given the line"}}
+{"id": "s21-ar-rules", "sha256": "a164d5f8df852075e3e2f1eb5b7252a5b274534e4b13b6a4f7fbd43080b7dfe9", "violations": {}}
+{"id": "s21-nl-bare", "sha256": "51ad2cfc53a10dc3fdfb77c05eea8b088871a18ee3dd43374c6838b5007db923", "violations": {"address": "uw vervoerder", "required-line": "bare prompt: the model was not given the line"}, "note": "4 pm written as 16.00 uur: expect a false alarm on the number"}
+{"id": "s21-nl-rules", "sha256": "2d47b886c5dbb08b244a09d72e5888da1c4de2e60c37b6f1322da9aeef69d1c7", "violations": {}, "note": "4 pm written as 16:00 uur: expect a false alarm on the number"}
+{"id": "s22-ar-bare", "sha256": "5b3e2aca6ebdd96f014f69ce3cd31f0bb753d8a4ee48ce272d0740e4d8b859b3", "violations": {"required-line": "bare prompt: the model was not given the line"}}
+{"id": "s22-ar-rules", "sha256": "33718dce40b933dfa8939280ed1ab4ad6d5859e51a355d21b29f333c10208c7d", "violations": {}}
+{"id": "s22-nl-bare", "sha256": "794f7f2bd36fd1ac6846c1ae4720bdd5e24e6fd2b73463db31996d800f805352", "violations": {"term": "klantenportaal for customer portal", "required-line": "bare prompt: the model was not given the line"}}
+{"id": "s22-nl-rules", "sha256": "a6fd6dce1e112e7fac7c4b033f182b7cfcaf1a5195419201d24a9845aff8f4f9", "violations": {}}
+{"id": "s23-ar-bare", "sha256": "3910994af9160cf8832a6d84331ac4437075840574a2ce4a1e8a94cc73af0478", "violations": {"required-line": "bare prompt: the model was not given the line"}}
+{"id": "s23-ar-rules", "sha256": "e649ac6c87645a0176e502cadcbc3e1cdd880fe9d3d40d45fe1ba23031eef475", "violations": {}}
+{"id": "s23-nl-bare", "sha256": "e38386e49f65895cb600b1db8bb4add7a2b88770197516bc0fca849d37b58224", "violations": {"required-line": "bare prompt: the model was not given the line"}}
+{"id": "s23-nl-rules", "sha256": "30ba67bb39bfb2ed62ff5eae550ead013f90bc5eded3738ac7369939bc3175a7", "violations": {}}
+{"id": "s24-ar-bare", "sha256": "ae16c2600acf9a464691be505c1ae2b738a7aebd2ba0cf674b05c6059a02e325", "violations": {"required-line": "bare prompt: the model was not given the line"}, "note": "1 written as واحد without a scale word: expect a false alarm on 1"}
+{"id": "s24-ar-rules", "sha256": "35e4e3033ce374b362b503afc381ed089e8e7410f5704ce3e16d4d68c2445464", "violations": {}}
+{"id": "s24-nl-bare", "sha256": "4d9585d7cda2736a2f708ad11fbc58e39bcbce8654796049ef4a35e67a71ea41", "violations": {"required-line": "bare prompt: the model was not given the line"}}
+{"id": "s24-nl-rules", "sha256": "e24709d774ec264016997ec26ca66c55dcbb9db2bdf65bdcebfcc7d64ceb3035", "violations": {}}
+{"id": "s25-ar-bare", "sha256": "875b33818569945c39faec13b3c5a94f17446c0deb0df3b685c641d019970bb2", "violations": {"required-line": "bare prompt: the model was not given the line"}}
+{"id": "s25-ar-rules", "sha256": "4522abfd044613d56cd164b921065963eeed4817444dc0e41ad68fc5a3905da1", "violations": {}}
+{"id": "s25-nl-bare", "sha256": "054ba5a9c043ab6f668454963365f90e3edcc4350dc378f00b5f5834dacd3978", "violations": {"required-line": "bare prompt: the model was not given the line"}}
+{"id": "s25-nl-rules", "sha256": "94235eba8d03c160e26eac7b6f29f236e10974627c87964d8ae7b6a98a8fc16b", "violations": {}}
+{"id": "s26-ar-bare", "sha256": "7acf65401eff68fc870d106d5733f3a055e858db5f4e7a55cef09f6825cd7537", "violations": {"required-line": "bare prompt: the model was not given the line"}}
+{"id": "s26-ar-rules", "sha256": "dbcf4b42c3492513fc5e75a6fcb4bb544d7c46f8b173b643040ea7bfda3508db", "violations": {}}
+{"id": "s26-nl-bare", "sha256": "dcce90ab5cd5219621dcee3dd4e29cdb6ec92893b9135da42a6d57daaf6b06e7", "violations": {"address": "U kunt", "term": "klantenportaal for customer portal", "required-line": "bare prompt: the model was not given the line"}}
+{"id": "s26-nl-rules", "sha256": "5ff18339f819ac3fb2b1b25779c43aef69182bedcee9a465c87023e5b6835428", "violations": {}}
+{"id": "s27-ar-bare", "sha256": "599afb8eb59accc6739edcd2f3fc3d56999561781ac5a16cea5a93c4574e65ba", "violations": {"term": "ناقلونا for our carriers", "required-line": "bare prompt: the model was not given the line"}}
+{"id": "s27-ar-rules", "sha256": "d1393913973f47d27083262728ee70df6620549af7fd1da923ec8899c7a6f288", "violations": {}}
+{"id": "s27-nl-bare", "sha256": "b883c3d0f9e518f2fe1dfd296796e352f3458bb0f50572717c1f98eb7969df57", "violations": {"required-line": "bare prompt: the model was not given the line"}}
+{"id": "s27-nl-rules", "sha256": "52c43906aeb45dcffaff073c5886eb5b2614154b8f13fd3d98e36605f09b1d67", "violations": {}}
+{"id": "s28-ar-bare", "sha256": "cd3328002de8c4955ecc875e0071492e61bd293b4d959f3b27081ca9c2ed8ed7", "violations": {"term": "نافذة التسليم for delivery window", "required-line": "bare prompt: the model was not given the line"}}
+{"id": "s28-ar-rules", "sha256": "ad49390ca0ddb07c5b8f9d273b693286f186b0125ceb151c4907975f1d33dec3", "violations": {}}
+{"id": "s28-nl-bare", "sha256": "45ad2545266e5318cba562a50a2afb6e2d1a87a786edaaf7f867d187b9a74ded", "violations": {"term": "bezorgmoment for delivery window", "required-line": "bare prompt: the model was not given the line"}}
+{"id": "s28-nl-rules", "sha256": "d0850b6a2f4409d6a470dfbce1dcf5b463613fe7c6b696ed9b0faad45651ea5b", "violations": {}}
+{"id": "s29-ar-bare", "sha256": "945c867e0b744c86ab6d120654e3178859a971b84552d01be92b6fd8abfae653", "violations": {"required-line": "bare prompt: the model was not given the line"}}
+{"id": "s29-ar-rules", "sha256": "4652556563d3064c68ce4102e810d80cc3fcbe61e777d942b81a0c00d2c685ac", "violations": {}}
+{"id": "s29-nl-bare", "sha256": "57fddea59ce8cc2485b5f3c5d064fc6c0accf2cd61bfde66b357760d5abc329a", "violations": {"required-line": "bare prompt: the model was not given the line"}}
+{"id": "s29-nl-rules", "sha256": "58a7f13830cba9f199f8d32e16a980d50d52343704fc588cc5598b3bcca1f032", "violations": {}}
+{"id": "s30-ar-bare", "sha256": "2657034aeed09a7412d6b195bb1252fdb6a52c8f7fb229b0e0e623019b20a5d2", "violations": {"required-line": "bare prompt: the model was not given the line"}}
+{"id": "s30-ar-rules", "sha256": "174f066c8ad34cafbe8d8a3f866150bc7f04e9c597330d419b2fb7af6329f070", "violations": {}, "note": "two Hebrew letters inside an Arabic word: a real defect that none of the six rules covers"}
+{"id": "s30-nl-bare", "sha256": "daceb4edadb356523f107a4ee81c8a7fa33a5efe1babe42e128a589d8dd4c63c", "violations": {"required-line": "bare prompt: the model was not given the line"}, "note": "zendingsgeschiedenis (the brand's word inside a compound): expect a false alarm on the term"}
+{"id": "s30-nl-rules", "sha256": "1504559807a8cab90ca835c5abfcb1504b5d1952e9c8b11ff6de91d53c617844", "violations": {}, "note": "zendinghistorie (the brand's word inside a compound): expect a false alarm on the term"}
+{"id": "s31-ar-bare", "sha256": "f7b020eed036c2011ea1e96f2332156e43782b26fce4671ed861454bc5727a52", "violations": {"term": "الناقل for carrier", "required-line": "bare prompt: the model was not given the line"}}
+{"id": "s31-ar-rules", "sha256": "ee3e93f2d8f57cc86d2546d739e885533e7f95ddf9f2631b3571eca561a6c3fb", "violations": {}}
+{"id": "s31-nl-bare", "sha256": "cb17e63d0432cad82871280d823dde2f0eaea1e1a54710e1ccb9c3844bc8046e", "violations": {"address": "bij u aan de deur", "required-line": "bare prompt: the model was not given the line"}}
+{"id": "s31-nl-rules", "sha256": "5e75c66e2ee49ab57c62ac62f28edf03d7dd322ca3d784fb954d38eb321365fa", "violations": {}}
+{"id": "s32-ar-bare", "sha256": "4a603fa31c90f7217e087c07e020d26f1076db116af7500ba8d17a816713fda4", "violations": {"required-line": "bare prompt: the model was not given the line"}}
+{"id": "s32-ar-rules", "sha256": "b9c655b4e120180681c540c54b6947b3bdbf0b44faa96879b8c921ae4c513a45", "violations": {}}
+{"id": "s32-nl-bare", "sha256": "d03f7b06231be14e893bdc785f4772cf2ebc4890667ee6adc30f616a551f4682", "violations": {"required-line": "bare prompt: the model was not given the line"}}
+{"id": "s32-nl-rules", "sha256": "6cfd82ef66c51f849e7a26aa0a7e03e5933b474dd2f3ed0a86112edb01f43a5b", "violations": {}}
+{"id": "s33-ar-bare", "sha256": "46466d2c26d756fa6d572d3a6bb08ec70c374e7d073f4c3a957da7042adc758e", "violations": {"required-line": "bare prompt: the model was not given the line"}, "note": "two people as a dual that is not listed (شخصين): expect a false alarm on 2"}
+{"id": "s33-ar-rules", "sha256": "c240b02b15a4cd2654b288f53ee20b5d16b349cd4b7e3272e6a30bcfab74c17d", "violations": {}}
+{"id": "s33-nl-bare", "sha256": "69529eeff2741af6f75cbee6002c1bc96e5e03c8d52d2fa4145797031043be96", "violations": {"required-line": "bare prompt: the model was not given the line"}}
+{"id": "s33-nl-rules", "sha256": "5c7ae899eec458cd563ad152811995447d5c42a173fdce3002bd1da78d20bc4e", "violations": {}}
+{"id": "s34-ar-bare", "sha256": "c72a4a97fbb4b8538f297fee796764e979eb2121f4e0d1d2a3e1db19b31e2a6a", "violations": {"name": "ExampleFreight kept, but a transliteration was added before it", "required-line": "bare prompt: the model was not given the line"}, "note": "the name is still there once, so the count rule will pass: expect a miss"}
+{"id": "s34-ar-rules", "sha256": "91ec167caf9b86451be4acc3e648cee1c46c1e96b4e07b840b2bd0e768f84968", "violations": {}}
+{"id": "s34-nl-bare", "sha256": "a1bebdb77cb993891be5111d00f04479f51d2aa3f877754eb4178f6e8f672920", "violations": {"required-line": "bare prompt: the model was not given the line"}}
+{"id": "s34-nl-rules", "sha256": "42e5b612332e3620d2674aa404caf77507b96351c0ac73e97d444797e4941e0b", "violations": {}}
+{"id": "s35-ar-bare", "sha256": "1e7e40dec742e6f52a2b7ae97a5eabe614d4b3495356cb223c33e81bf2064a9f", "violations": {"term": "نافذة التسليم for delivery window; الناقل for carrier", "required-line": "bare prompt: the model was not given the line"}}
+{"id": "s35-ar-rules", "sha256": "55862cb90e43b9e3846aa1b3791c9b9649288c69f546bc502f78d766b649c283", "violations": {}}
+{"id": "s35-nl-bare", "sha256": "f214e8d1852bcf81b865b6c34de77c7a88336815fbc677764d87514c3f4b14bf", "violations": {"term": "bezorgmoment for delivery window", "required-line": "bare prompt: the model was not given the line"}}
+{"id": "s35-nl-rules", "sha256": "354cb497cb96a43f9344382356b73f9bce9abbd0d7001ea4d58b3e4e4d073724", "violations": {}}
+{"id": "s36-ar-bare", "sha256": "a32216d8427264e8c34468553d01a5da2af5e995a1e14628335bf8f261456c27", "violations": {"required-line": "bare prompt: the model was not given the line"}}
+{"id": "s36-ar-rules", "sha256": "db096f3c1ec852a4b8af69aaa34e88274ca4d2b6ee217dd841f7785a7772c8c3", "violations": {}}
+{"id": "s36-nl-bare", "sha256": "a0d11cb32982ceb88c5d955f06ad44aec90c3daf3b4274d456ca7d88e5db1a88", "violations": {"required-line": "bare prompt: the model was not given the line"}}
+{"id": "s36-nl-rules", "sha256": "3eca5dcb6d9080fb08605aa95fa5d16079c4917fac219986591ec2fb63b1ba29", "violations": {}}
+{"id": "s37-ar-bare", "sha256": "2d4df63b799ac9f26246a51a3edeca92d86f210f1135df60424b71caf23e1a84", "violations": {"required-line": "bare prompt: the model was not given the line"}}
+{"id": "s37-ar-rules", "sha256": "2dc1aa8c9d865b19aacd32d059b77a8743760970aa2e1821d2cee80a10f80423", "violations": {}}
+{"id": "s37-nl-bare", "sha256": "16d2db5af3019294936ace9dc9ec1cc2963d436097b85bae37ec4ec838c40e6d", "violations": {"required-line": "bare prompt: the model was not given the line"}}
+{"id": "s37-nl-rules", "sha256": "0b9d6abbe836579e16dcc43aa52247d40eeb5af869043c2fa013057d461d5515", "violations": {}}
+{"id": "s38-ar-bare", "sha256": "9fa036f3151dd5e8f12aed775cc105a7ce17dc342901659961bf33180bd18132", "violations": {"required-line": "bare prompt: the model was not given the line"}}
+{"id": "s38-ar-rules", "sha256": "a6588eac98a16e91c84e136b88a64db37db124dec4985fdbde98ddfb21346826", "violations": {}}
+{"id": "s38-nl-bare", "sha256": "de57266a7e2bc1cb39c2d34e8ce6bf5e93c5eda5687aa194997b2c2d0513afeb", "violations": {"required-line": "bare prompt: the model was not given the line"}}
+{"id": "s38-nl-rules", "sha256": "25bf9831035d025954d9602893c8c689bbc735b40e8bf1315ac067db38f02202", "violations": {}}
+{"id": "s39-ar-bare", "sha256": "8db5dd2aab5d5a6c672c5d46dc8e330709c91d0e3d9acf0679a0ebf09b243c16", "violations": {"required-line": "bare prompt: the model was not given the line"}}
+{"id": "s39-ar-rules", "sha256": "1567dc7c5c1ba429025638c1d722662acbe711813a410f4fd955c95d00a4dae7", "violations": {}}
+{"id": "s39-nl-bare", "sha256": "f86e42217934879ebf9ad4cb4d4634d37e9a46d31c2635f7d1ec04f29e19d1cd", "violations": {"required-line": "bare prompt: the model was not given the line"}}
+{"id": "s39-nl-rules", "sha256": "78e6163d3d97b6116e2e518d118cb4411af7f0b7a439e63913ea50bad6744e28", "violations": {}}
+{"id": "s40-ar-bare", "sha256": "73e24b10b873548b29200f9a950f35acfe43f982c7170cddf8413c5d4e2cd88e", "violations": {"name": "ExampleFreight kept, but a transliteration was added before it", "required-line": "bare prompt: the model was not given the line"}, "note": "the name is still there once, so the count rule will pass: expect a miss"}
+{"id": "s40-ar-rules", "sha256": "770dfe3c49d4d2f93fb4f4413a1966f3be5f0093a6a65911cd638ff6b9cbf2c6", "violations": {}}
+{"id": "s40-nl-bare", "sha256": "93f4d047c6cb809f5736f0bff346e4fcac9863fa183cb886feb26b233d902d4b", "violations": {"required-line": "bare prompt: the model was not given the line"}}
+{"id": "s40-nl-rules", "sha256": "7c6adeeab03edd0a3b76d4cc1cba9a033aa29771ab193f23fc68fd3994ee1a9a", "violations": {}}
