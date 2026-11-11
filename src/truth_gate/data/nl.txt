@@ -1,0 +1,74 @@
+# Dutch number reading for the pair check (`truth-gate check-pair --market nl-...`).
+# NOT checked by a native speaker.
+# Format: a [section] line, then "value = form | form" lines, or bare "form | form" lines.
+
+[number-words]
+# always a number
+2 = twee
+3 = drie
+4 = vier
+5 = vijf
+6 = zes
+7 = zeven
+8 = acht
+9 = negen
+10 = tien
+11 = elf
+12 = twaalf
+13 = dertien
+14 = veertien
+15 = vijftien
+16 = zestien
+17 = zeventien
+18 = achttien
+19 = negentien
+20 = twintig
+30 = dertig
+40 = veertig
+50 = vijftig
+60 = zestig
+70 = zeventig
+80 = tachtig
+90 = negentig
+
+[needs-scale]
+# only a number when a scale word follows ("een miljoen"); alone it is the article "a"
+1 = een | één
+
+[scale-words]
+# after a number: "5 miljoen", "1,2 mln"
+100 = honderd
+1000 = duizend
+1000000 = miljoen | mln
+1000000000 = miljard | mld | mrd
+
+[bare-scale]
+# a number on their own: "duizend klanten"
+100 = honderd
+1000 = duizend
+
+[compound-units]
+# first part of "vijfentwintig" (25) and "tweeduizend" (2000)
+1 = een | één
+2 = twee
+3 = drie
+4 = vier
+5 = vijf
+6 = zes
+7 = zeven
+8 = acht
+9 = negen
+
+[percent-words]
+procent | percent | pct
+
+[currency-words]
+EUR = euro | euro's
+USD = dollar | dollars
+GBP = pond
+CHF = frank | franken
+JPY = yen
+
+[ordinal-suffixes]
+# "1e", "2de", "20ste"
+ste | de | e

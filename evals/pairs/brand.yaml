@@ -1,0 +1,24 @@
+# Brand file for the hand-built pair corpus. Everything here is fictional.
+brand: ExampleFreight
+source_locale: en
+do_not_translate: [ExampleFreight, TrackBoard]
+markets:
+  nl-NL:
+    address: informal
+    terms:
+      - source: shipment
+        target: [zending, zendingen]
+      - source: customer portal
+        target: [klantportaal]
+    forbidden: [gratis verzending, goedkoopste]
+    required_lines:
+      - "Prijzen zijn exclusief btw."
+  ar:
+    terms:
+      - source: shipment
+        target: ["شحنة", "شحنات"]
+      - source: customer portal
+        target: ["بوابة العملاء"]
+    forbidden: ["شحن مجاني", "الأرخص"]
+    required_lines:
+      - "الأسعار لا تشمل ضريبة القيمة المضافة."

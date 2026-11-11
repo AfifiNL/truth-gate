@@ -12,6 +12,7 @@ silently in any other way.
 from __future__ import annotations
 
 import re
+from collections.abc import Callable
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 from typing import Literal
@@ -212,8 +213,17 @@ def _skip_rule(text: str, m: re.Match[str]) -> str | None:
     return None
 
 
-def scan(text: str) -> tuple[list[Quantity], list[Skipped]]:
-    """Every quantity in `text` (with offsets), and every number-like token deliberately skipped."""
+def scan(text: str, locale: str = "en") -> tuple[list[Quantity], list[Skipped]]:
+    """Every quantity in `text` (with offsets), and every number-like token deliberately skipped.
+
+    `locale` is "en" (the default, unchanged since v0.1) or a target language of the pair check
+    ("nl", "ar"), which is read by `locales.scan_target`.
+    """
+    if locale != "en":
+        from truth_gate.locales import scan_target
+
+        target = scan_target(text, locale)
+        return target.quantities, target.skipped
     found: list[Quantity] = []
     skipped: list[Skipped] = []
     for m in _DIGITS.finditer(text):
@@ -246,8 +256,8 @@ def scan(text: str) -> tuple[list[Quantity], list[Skipped]]:
     return _propagate_range_units(text, found), skipped
 
 
-def find_quantities(text: str) -> list[Quantity]:
-    return scan(text)[0]
+def find_quantities(text: str, locale: str = "en") -> list[Quantity]:
+    return scan(text, locale)[0]
 
 
 def _build(text: str, value: Decimal, start: int, end: int, words: bool = False) -> Quantity:
@@ -262,7 +272,9 @@ def _build(text: str, value: Decimal, start: int, end: int, words: bool = False)
     return Quantity(value * scale, kind, currency, qstart, qend, text[qstart:qend], unit, scaled)
 
 
-def _propagate_range_units(text: str, qs: list[Quantity]) -> list[Quantity]:
+def _propagate_range_units(
+    text: str, qs: list[Quantity], unscaled: Callable[[Quantity], Decimal] | None = None
+) -> list[Quantity]:
     """In "10-15%" or "€2-3m" (any dash) the unit and scale are written once; both ends get them.
 
     Only a dash with nothing but spaces around it makes a range ("from 500 to 2m" does not).
@@ -278,7 +290,10 @@ def _propagate_range_units(text: str, qs: list[Quantity]) -> list[Quantity]:
             kind, currency, unit = b.kind, b.currency, b.unit
         value, scaled = a.value, a.scaled
         if not a.scaled and b.scaled:
-            scale = b.value / _unscaled(text, b)
+            base = unscaled(b) if unscaled else _unscaled(text, b)
+            if base == 0:  # "5-0 million": nothing to carry over
+                continue
+            scale = b.value / base
             if a.value * scale <= b.value:
                 value, scaled = a.value * scale, True
         out[i] = Quantity(value, kind, currency, a.start, a.end, a.text, unit, scaled)

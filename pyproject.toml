@@ -1,7 +1,7 @@
 [project]
 name = "truth-gate"
-version = "0.1.0"
-description = "Check an AI-written document against a facts file: every number must trace to a fact with matching context, every skill must be listed, blocked phrases fail, and a tone lint flags machine phrasing."
+version = "0.2.0"
+description = "Check an AI-written document against a facts file, and a Dutch or Arabic localisation against its English source and a brand file per market: numbers, names, terms, forbidden phrases and required lines, with no model involved."
 readme = "README.md"
 requires-python = ">=3.12"
 license = "Apache-2.0"
@@ -51,7 +51,8 @@ select = ["E", "F", "W", "I", "B", "UP", "SIM", "RUF", "S", "PT"]
 ignore = ["SIM905"]  # word lists read better as one string
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["S", "RUF001"]  # en dashes in number tests are the input under test
+"tests/**" = ["S", "RUF001", "RUF003"]  # en dashes, Arabic and Dutch text are the input under test
+"evals/**" = ["RUF001", "RUF003"]  # localised example text
 
 [tool.mypy]
 python_version = "3.12"

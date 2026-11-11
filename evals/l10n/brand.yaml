@@ -1,0 +1,32 @@
+# Brand file for the localisation experiment. Everything here is fictional.
+brand: ExampleFreight
+source_locale: en
+do_not_translate: [ExampleFreight, TrackBoard, RouteSense]
+markets:
+  nl-NL:
+    address: informal
+    terms:
+      - source: shipment
+        target: [zending, zendingen]
+      - source: customer portal
+        target: [klantportaal]
+      - source: carrier
+        target: [vervoerder, vervoerders]
+      - source: delivery window
+        target: [bezorgvenster, bezorgvensters]
+    forbidden: [gratis verzending, goedkoopste, pakketje]
+    required_lines:
+      - "Prijzen zijn exclusief btw."
+  ar:
+    terms:
+      - source: shipment
+        target: ["شحنة", "شحنات"]
+      - source: customer portal
+        target: ["بوابة العملاء"]
+      - source: carrier
+        target: ["شركة النقل", "شركات النقل"]
+      - source: delivery window
+        target: ["موعد التسليم", "مواعيد التسليم"]
+    forbidden: ["شحن مجاني", "الأرخص"]
+    required_lines:
+      - "الأسعار لا تشمل ضريبة القيمة المضافة."

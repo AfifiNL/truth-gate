@@ -1,0 +1,24 @@
+# Rules for localising ExampleFreight's content. Everything here is fictional.
+brand: ExampleFreight
+source_locale: en
+do_not_translate: [ExampleFreight, TrackBoard]   # must appear unchanged in every target
+markets:
+  nl-NL:
+    address: informal            # "je"; "u" and "uw" fail
+    terms:
+      - source: shipment
+        target: [zending, zendingen]
+      - source: customer portal
+        target: [klantportaal]
+    forbidden: [gratis verzending, vracht]
+    required_lines:
+      - "Prijzen zijn exclusief btw."
+  ar:
+    terms:
+      - source: shipment
+        target: ["شحنة", "شحنات"]
+      - source: customer portal
+        target: ["بوابة العملاء"]
+    forbidden: ["شحن مجاني"]
+    required_lines:
+      - "الأسعار لا تشمل ضريبة القيمة المضافة."

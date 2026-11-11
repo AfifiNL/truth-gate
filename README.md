@@ -14,6 +14,11 @@ It ships as a **CLI** (exit code 0/1, text or JSON report) and an **MCP server**
 check its own draft before a person reads it. No model is involved in checking: the same
 document and facts always give the same result.
 
+Since v0.2 it also checks a **localised draft** (Dutch or Arabic) against its English source and
+a **brand file** with the rules for one market: numbers must survive the translation, names
+that must not be translated must stay as written, the market's terms must be used, forbidden
+phrases fail, required lines must be there. See [Localised drafts](#localised-drafts-the-pair-check).
+
 ## What it does
 
 ```text
@@ -44,6 +49,7 @@ Requires Python 3.12+ and [uv](https://docs.astral.sh/uv/).
 ```bash
 make install     # .venv from uv.lock
 make demo        # checks examples/pass.md (PASS) and examples/fail.md (FAIL)
+make demo-pair   # a Dutch and an Arabic draft against their English source (PASS, PASS, FAIL)
 make check       # lint, strict mypy, tests, eval gate: exactly what CI runs
 ```
 
@@ -162,6 +168,138 @@ server read other files. Example client entry:
 The tests drive the server through the SDK's in-process client (with and without the full
 protocol handshake) and once through a real `truth-gate serve` subprocess over stdio.
 
+## Localised drafts: the pair check
+
+```text
+$ truth-gate check-pair examples/pair/fail.nl.md --source examples/pair/source.en.md \
+      --brand examples/pair/brand.yaml --market nl-NL
+FAIL (nl-NL): 7 error(s), 1 warning(s); 5 number(s) in the source, 5 in the target
+  ERROR   source 1:3 name: 'TrackBoard' must stay as written: 2 time(s) in the source, 1 in the target
+  ERROR   source 3:28 term: the source says 'shipment'; the target has none of: zending, zendingen
+  ERROR   target 3:34 number: 1.2 is not in the source; the source has 1200 (line 3): in Dutch '1,200' has a decimal comma
+  WARNING target 3:61 format: '98.5%' is English number format; Dutch writes a decimal comma
+  ERROR   target 5:26 address: 'uw' is formal; this market is addressed informally
+  ERROR   target 5:54 forbidden: forbidden phrase 'gratis verzending'
+  ERROR   target 6:27 number: 20 is not in the source; the source has 12 (line 6)
+  ERROR   target required-line: required line is missing: 'Prijzen zijn exclusief btw.'
+```
+
+Truth flows one way: facts → English source → localised target. The source is checked against
+the facts with the rules above (pass `--facts`), and the target is checked against the source
+and the market's rules. The target is never checked against the facts directly: the facts are
+English sentences, and the context rule compares English words.
+
+A finding about something missing from the target points at the place in the source
+(`source 3:28`), because there is no place in the target to point at.
+
+### The brand file
+
+```yaml
+brand: ExampleFreight
+source_locale: en
+do_not_translate: [ExampleFreight, TrackBoard]   # must appear unchanged in every target
+markets:
+  nl-NL:
+    address: informal            # "je"; "u" and "uw" fail. formal: "je", "jij", "jouw" fail
+    terms:
+      - source: shipment         # when the source says this ...
+        target: [zending, zendingen]   # ... the target must use one of these
+    forbidden: [gratis verzending, vracht]
+    required_lines:
+      - "Prijzen zijn exclusief btw."
+  ar:
+    terms:
+      - source: shipment
+        target: ["شحنة", "شحنات"]
+```
+
+Unknown keys and duplicate keys are rejected, as in the facts file. `truth-gate brand FILE`
+validates a brand file and lists its markets. All example content is fictional.
+
+### The pair rules, exactly
+
+1. **number.** Every quantity in the source must appear in the target with the same value, and
+   the target must not contain a quantity the source lacks. Quantities are compared over the
+   whole document. A percentage must stay a percentage. Money must keep its currency, but money
+   or a glued unit on one side may be a plain number on the other, because the target may write
+   the currency or unit in words the scanner does not know. When one number replaced another,
+   the finding names both. Number-like tokens that are not read as quantities (a time such as
+   `09:00`, `24/7`, a version, a name such as `Q3` or `B2B`) must be the same text, the same
+   number of times, on both sides.
+2. **name.** Each `do_not_translate` name must occur in the target as written, at least as
+   often as in the source, counted outside code and URLs. A Dutch genitive (`ExampleFreights`) and an Arabic particle written
+   against the name count as the name.
+3. **term.** When the source contains a `source` term (singular or plural), the target must
+   contain one of its `target` forms at least once. It is not counted per occurrence. Dutch: the listed forms, as whole words. Arabic: see
+   below.
+4. **forbidden.** A `forbidden` phrase anywhere in the target fails, as a whole phrase. Its
+   words may be joined by whitespace, Markdown emphasis marks or a hyphen.
+5. **required-line.** Every `required_lines` entry must stand in the target as a line or a
+   paragraph of its own, outside comments, compared after collapsing whitespace and ignoring
+   case and Markdown decoration. The same words inside a longer sentence do not count.
+6. **address** (Dutch, when `address` is set). `informal` fails on `u`, `uw`, `uzelf`; `formal`
+   fails on `je`, `jij`, `jou`, `jouw`, `jullie`, `jezelf`. An abbreviation such as `a.u.b.`
+   is not a pronoun.
+
+Before any rule runs, both texts are put in Unicode NFC and stripped of invisible characters
+(soft hyphen, zero-width space and joiners), so a phrase cannot hide behind them.
+
+A **format** warning (Dutch) marks a number written the English way (`1.5`). Warnings never
+fail; `--strict` makes them fail. Numbers in code, comments, URLs and link targets are not
+compared, as in the single-document check.
+
+### How numbers are read per language
+
+| | English | Dutch | Arabic |
+|---|---|---|---|
+| Decimal mark | `.` | `,` | `.` or `٫` |
+| Thousands mark | `,` | `.`, or a no-break or thin space | `,` or `٬` |
+| Digits | `0-9` | `0-9` | `0-9`, `٠-٩`, `۰-۹` |
+| Percent | `%`, percent | `%`, procent, pct | `%`, `٪` (before or after the number), بالمئة, في المئة |
+| Scale words | thousand, million | duizend, miljoen, miljard, mln, mld | ألف, آلاف, مليون, ملايين, مليار |
+| Number words | one to ninety-nine | twee to negentig, `vijfentwintig`, `tweeduizend` | two to ninety-nine, and the dual nouns listed in the data file |
+
+So `1,200` is one thousand two hundred in an English source and one point two in a Dutch
+target. A Dutch draft that copies `1,200` from the source fails, which is the mistake this rule
+exists for.
+
+The word lists are data files a speaker of the language can read and correct:
+[`data/nl.txt`](src/truth_gate/data/nl.txt) and [`data/ar.txt`](src/truth_gate/data/ar.txt).
+
+### How Arabic text is matched
+
+Before anything is matched, Arabic text is folded: Unicode direction marks and isolates are
+removed (so a Latin name wrapped in them still matches), diacritics and the elongation character
+are removed, the alef forms become one, and a final alef maqsura is read as ya. Findings still
+point at the original text.
+
+- A number word, a term or a forbidden phrase may carry one attached particle from a fixed
+  list: the conjunctions, the attached prepositions and the definite article
+  (`وبالشحنة` contains the term `شحنة`).
+- For **terms** the definite article is ignored on every word (`شركة نقل` is the term
+  `شركة النقل`), and the last word may carry a pronoun suffix (`شحنتك`, "your shipment", uses
+  the term `شحنة`).
+- For **forbidden phrases** a word listed without the article also matches with it (`شحن مجاني`
+  matches `الشحن المجاني`), but a listed article must be there: `الأرخص` (the cheapest) does
+  not match `أرخص` (cheaper).
+- A word of a term or phrase may end in the alef of the indefinite accusative (`شحنًا مجانيًا`).
+- A few short number words take no particle except the conjunction: `ست` is six, and `لست`
+  ("I am not") must not be read as "for six".
+
+### For agents
+
+`truth-gate serve --facts FILE --brand FILE` adds a tool, `check_localised(source_text,
+target_text, market)`, which returns the pair report as structured content. Like
+`check_document` it takes text only, never a path.
+
+[`skills/localisation-check/SKILL.md`](skills/localisation-check/SKILL.md) is an agent skill.
+It tells an agent that localises a document to read the market's rules first, write the draft,
+run the check, fix every finding and hand over the draft with the passing report. It forbids
+three things: editing the brand file, editing the source, and deleting a sentence to make a
+finding go away. To use it in Claude Code, copy the folder to `.claude/skills/` in your project
+or to `~/.claude/skills/`. [docs/SKILL_WALKTHROUGH.md](docs/SKILL_WALKTHROUGH.md) records one
+session.
+
 ## Evals
 
 `evals/cases.jsonl` holds 35 synthetic documents about a fictional person (`evals/facts.yaml`,
@@ -279,6 +417,100 @@ single facts file; the errors are ones the model was asked to make, which are ea
 ones it makes by accident. It shows the checks work on model-written prose, not how often a
 model errs unprompted.
 
+### Pair corpus
+
+`evals/pairs/cases.jsonl` holds 52 hand-written pairs (30 Dutch, 22 Arabic), built by
+`evals/pairs/build_cases.py`: 14 clean pairs, 29 pairs that are a clean target with exactly one
+planted error, and 9 hard cases written to show a known limit. The planted errors are a changed
+number, a number left in the source's format, a dropped number, an added number, a percentage
+that lost its sign, a translated name, a missing term, a forbidden phrase, a missing required
+line and the wrong form of address.
+
+| | cases | handled as intended |
+|---|---|---|
+| clean pairs | 14 | 14 pass |
+| planted errors | 29 | 29 fail on the planted rule |
+| hard cases | 9 | 0 (3 errors pass, 6 clean pairs fail) |
+
+Counting the hard cases, the catch rate is 0.906 and the false-alarm rate 0.3. The floors in
+`evals/pairs/gate.json` were written after the dev split and before the test split was run, and
+the baseline pins every single outcome, so a new miss or false alarm fails `make check`.
+
+This set was written together with the checker. It is a regression gate and a description of
+behaviour, not an accuracy estimate. Neither the Dutch nor the Arabic pairs have been checked
+by a native speaker yet.
+
+### Localisation experiment
+
+The question: when a model localises English copy, how often does it break a market rule, does
+putting the rules in the prompt help, and how much of what is left does the gate catch?
+
+`evals/l10n/` holds 40 short English texts in a fictional world, written by the author, each
+with numbers and some of the brand file's names and terms. `gemini-3.6-flash` (Vertex AI,
+thinking level low, 2026-11-11) localised each into Dutch and Arabic under two prompts: `rules`
+contains the market's section of the brand file, `bare` does not. That is 160 documents. The
+sources were split into `dev` and `test` (20 each) before anything was run.
+
+Every document was labelled by reading it before the checker ran on its half: which of the six
+rules a reviewer would say it breaks, with the evidence. The labels were written by the coding
+agent that built this version (Claude). The author, a native Arabic speaker, states that he
+reviewed all 80 Arabic labels and at least 25 of the 80 Dutch ones on 2026-11-11 and changed
+none. Labels record each document's SHA-256, the raw API responses are kept, and
+the history shows each half's labels committed before the commit that ran the checker on it.
+The notes in `make_labels.py` record, before each run, where the reader expected the checker
+to disagree.
+
+**What the model did** (from the labels, 40 documents per row):
+
+| Market | Prompt | Breaks a rule other than the required line | Term | Address | Name | Number | Forbidden |
+|---|---|---|---|---|---|---|---|
+| Dutch | bare | 15 of 40 | 8 | 9 | 0 | 0 | 0 |
+| Dutch | rules | 0 of 40 | 0 | 0 | 0 | 0 | 0 |
+| Arabic | bare | 12 of 40 | 8 | n/a | 4 | 0 | 0 |
+| Arabic | rules | 0 of 40 | 0 | n/a | 0 | 0 | 0 |
+
+Without the rules, the model chose its own word for a brand term (`klantenportaal`,
+`bezorgmoment`, `الناقل`), addressed the Dutch reader with "u", and four times added an Arabic
+transliteration next to a name. It never broke a number. With the rules in the prompt it broke
+none of the six rules in 80 documents. The `bare` documents all lack the required line, because
+the model was never given it; that is not counted above.
+
+**What the gate did against the labels:**
+
+| Half | Documents | Same rules as the label | Violations reported, required line aside | Documents with a false alarm |
+|---|---|---|---|---|
+| dev, first run | 80 | 67 | 13 of 15 | 11 |
+| dev, after tuning on it | 80 | 77 | 13 of 15 | 1 |
+| **test, run once** | 80 | **70** | **12 of 14** | **8** |
+| test, after one fix found on it | 80 | 72 | 12 of 14 | 6 |
+
+The missing required line was reported in all 40 `bare` documents of each half.
+
+The row to read is `test, run once`. On it the gate reported every labelled term, address and
+required-line violation, and missed both name violations. Its 8 false alarms:
+
+- 2 Dutch clock times ("4 pm" written as `16.00 uur` and `16:00 uur`);
+- 2 Dutch compounds that contain the brand's word (`zendingsgeschiedenis`, `zendinghistorie`);
+- 1 Arabic "one" written as a word without a scale word, and 1 dual noun that is not listed
+  (`شخصين`, two people);
+- 2 documents where `الاثنين` (Monday, in "Monday to Saturday") was read as the number two.
+
+Three of the 8 are in the `rules` half, which is the text a reviewer would really receive: 3 of
+40 clean documents failed. The Monday reading was a defect, not a known limit, and was fixed
+after the run (the masculine forms of "two" no longer take the article); the last row shows the
+result and is not a blind number. An independent review of the code after the run led to more
+fixes ([DESIGN.md](docs/DESIGN.md) lists them); they changed no outcome in either half. The
+other six are limits listed below. The two misses are the
+transliteration written next to a kept name, also listed below.
+
+One thing the six rules do not cover at all: one Arabic `rules` document contains two Hebrew
+letters inside an Arabic word. It passes.
+
+**What these numbers are not.** One model, one prompt per condition, one run, 40 short texts in
+one invented domain, labelled by the agent that wrote the checker. They describe this run. They
+do not estimate how often models break brand rules, and the dev rows are tuned on. From here on
+both halves are a regression set: `make check` fails when a document's outcome changes.
+
 ## Design in short
 
 - **Deterministic and explainable.** Every finding has a line, a column and a reason; every
@@ -292,8 +524,11 @@ model errs unprompted.
 
 ## Limits
 
-- English only. Number words, stopwords and the stemmer are English. A European decimal comma
-  (`1,5`) is not read at all, so that number is not checked.
+### Single-document check
+
+- English only. Number words, stopwords and the stemmer are English, and a European decimal
+  comma (`1,5`) is not read, so that number is not checked. Dutch and Arabic are read only by
+  the pair check, as targets.
 - ISO dates are read as separate numbers (`2021-03-05` gives 2021, 3 and 5), each needing a fact.
 - Every line break ends a sentence, so in hard-wrapped prose a number near the end of a line
   loses the context words on the next line (a false alarm, never a false pass).
@@ -314,6 +549,40 @@ model errs unprompted.
   Case-sensitive short terms are missed in lower case.
 - `5m` is read as 5 million; a document about metres needs a different unit.
 - Version numbers with one dot (`Python 3.12`) are numbers and need a fact.
+
+### Pair check
+
+- It does not judge whether a translation is fluent, natural or faithful in meaning. "An
+  increase of 15%" translated as "a decrease of 15%" passes: the number is the same. Two
+  numbers swapped between two nouns pass too.
+- It checks tone only where tone is a rule a list can express: forbidden phrases, and the form
+  of address in Dutch.
+- English source; Dutch and Arabic targets. No other language. The Dutch word lists and the
+  Dutch test pairs have not been checked by a native speaker. The Arabic word lists were
+  drafted by the coding agent; the author, a native speaker, states that he reviewed them on
+  2026-11-11 and changed none. The Arabic test pairs have not been reviewed by a native speaker.
+- A term is checked for presence, not per occurrence: if the source says "shipment" twice and
+  the target uses the brand's word once and another word the second time, it passes.
+- Terms and forbidden phrases match by listed forms. A Dutch compound (`zendingnummer`) or an
+  inflected form that is not listed is reported as a missing term (a false alarm), and an
+  inflected forbidden phrase (`gratis verzenden` for `gratis verzending`) passes (a miss).
+- A name must occur as often as in the source, so a name replaced by a pronoun the second time
+  is reported (a false alarm). A transliteration written next to a kept name
+  (`إكزامبل فريت (ExampleFreight)`) passes (a miss): list the transliteration under `forbidden`.
+- A spelled-out number outside the word lists is not read, and the source's number is then
+  reported as missing (a false alarm): long Dutch compounds (`driehonderdvijftig`), Arabic
+  hundreds written as one word, and an Arabic dual noun that is not in the list.
+- A clock time written the local way ("6 pm" as `18.00 uur`, "8" as `08:00`, `09:00` as
+  `9.00 uur`) is reported as a changed or missing number (a false alarm).
+- A currency converted during localisation is reported only when the scanner recognises the
+  new currency: a symbol, an ISO code or a listed word directly at the number. A wording it does
+  not know (`49 Zwitserse frank`) reads as a plain 49 and passes.
+- A sign is not read: `-5%` and `5%` are the same number.
+- Month names are not read as numbers, and slashed dates are skipped on both sides, so a changed
+  month passes.
+- It does not detect a paragraph left untranslated.
+- An Arabic suffix that changes a word's spelling (`بوابة عملائنا` for `بوابة العملاء`) is
+  reported as a missing term (a false alarm).
 
 ## License
 
