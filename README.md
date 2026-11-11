@@ -422,8 +422,77 @@ Counting the hard cases, the catch rate is 0.906 and the false-alarm rate 0.3. T
 `evals/pairs/gate.json` were written after the dev split and before the test split was run, and
 the baseline pins every single outcome, so a new miss or false alarm fails `make check`.
 
-This set was written by the author of the checker. It is a regression gate and a description of
-behaviour, not an accuracy estimate. The Dutch has not been checked by a native speaker.
+This set was written together with the checker. It is a regression gate and a description of
+behaviour, not an accuracy estimate. Neither the Dutch nor the Arabic has been checked by a
+native speaker yet.
+
+### Localisation experiment
+
+The question: when a model localises English copy, how often does it break a market rule, does
+putting the rules in the prompt help, and how much of what is left does the gate catch?
+
+`evals/l10n/` holds 40 short English texts in a fictional world, written by the author, each
+with numbers and some of the brand file's names and terms. `gemini-3.6-flash` (Vertex AI,
+thinking level low, 2026-11-11) localised each into Dutch and Arabic under two prompts: `rules`
+contains the market's section of the brand file, `bare` does not. That is 160 documents. The
+sources were split into `dev` and `test` (20 each) before anything was run.
+
+Every document was labelled by reading it before the checker ran on its half: which of the six
+rules a reviewer would say it breaks, with the evidence. The labels were written by the coding
+agent that built this version (Claude). They have not yet been reviewed by a second reader.
+Labels record each document's SHA-256, the raw API responses are kept, and
+the history shows each half's labels committed before the commit that ran the checker on it.
+The notes in `make_labels.py` record, before each run, where the reader expected the checker
+to disagree.
+
+**What the model did** (from the labels, 40 documents per row):
+
+| Market | Prompt | Breaks a rule other than the required line | Term | Address | Name | Number | Forbidden |
+|---|---|---|---|---|---|---|---|
+| Dutch | bare | 15 of 40 | 8 | 9 | 0 | 0 | 0 |
+| Dutch | rules | 0 of 40 | 0 | 0 | 0 | 0 | 0 |
+| Arabic | bare | 12 of 40 | 8 | n/a | 4 | 0 | 0 |
+| Arabic | rules | 0 of 40 | 0 | n/a | 0 | 0 | 0 |
+
+Without the rules, the model chose its own word for a brand term (`klantenportaal`,
+`bezorgmoment`, `الناقل`), addressed the Dutch reader with "u", and four times added an Arabic
+transliteration next to a name. It never broke a number. With the rules in the prompt it broke
+none of the six rules in 80 documents. The `bare` documents all lack the required line, because
+the model was never given it; that is not counted above.
+
+**What the gate did against the labels:**
+
+| Half | Documents | Same rules as the label | Violations reported, required line aside | Documents with a false alarm |
+|---|---|---|---|---|
+| dev, first run | 80 | 67 | 13 of 15 | 11 |
+| dev, after tuning on it | 80 | 77 | 13 of 15 | 1 |
+| **test, run once** | 80 | **70** | **12 of 14** | **8** |
+| test, after one fix found on it | 80 | 72 | 12 of 14 | 6 |
+
+The missing required line was reported in all 40 `bare` documents of each half.
+
+The row to read is `test, run once`. On it the gate reported every labelled term, address and
+required-line violation, and missed both name violations. Its 8 false alarms:
+
+- 2 Dutch clock times ("4 pm" written as `16.00 uur` and `16:00 uur`);
+- 2 Dutch compounds that contain the brand's word (`zendingsgeschiedenis`, `zendinghistorie`);
+- 1 Arabic "one" written as a word without a scale word, and 1 dual noun that is not listed
+  (`شخصين`, two people);
+- 2 documents where `الاثنين` (Monday, in "Monday to Saturday") was read as the number two.
+
+Three of the 8 are in the `rules` half, which is the text a reviewer would really receive: 3 of
+40 clean documents failed. The Monday reading was a defect, not a known limit, and was fixed
+after the run (the masculine forms of "two" no longer take the article); the last row shows the
+result and is not a blind number. The other six are limits listed below. The two misses are the
+transliteration written next to a kept name, also listed below.
+
+One thing the six rules do not cover at all: one Arabic `rules` document contains two Hebrew
+letters inside an Arabic word. It passes.
+
+**What these numbers are not.** One model, one prompt per condition, one run, 40 short texts in
+one invented domain, labelled by the agent that wrote the checker. They describe this run. They
+do not estimate how often models break brand rules, and the dev rows are tuned on. From here on
+both halves are a regression set: `make check` fails when a document's outcome changes.
 
 ## Design in short
 
@@ -472,7 +541,8 @@ behaviour, not an accuracy estimate. The Dutch has not been checked by a native 
 - It checks tone only where tone is a rule a list can express: forbidden phrases, and the form
   of address in Dutch.
 - English source; Dutch and Arabic targets. No other language. The Dutch word lists and the
-  Dutch test pairs were written by the author and have not been checked by a native speaker.
+  Dutch test pairs have not been checked by a native speaker. The Arabic word lists and test
+  pairs were drafted by the coding agent and have not yet been reviewed by a native speaker.
 - A term is checked for presence, not per occurrence: if the source says "shipment" twice and
   the target uses the brand's word once and another word the second time, it passes.
 - Terms and forbidden phrases match by listed forms. A Dutch compound (`zendingnummer`) or an

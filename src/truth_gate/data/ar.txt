@@ -7,7 +7,9 @@
 
 [number-words]
 # always a number
-2 = اثنان | اثنين | اثنتان | اثنتين
+# With the article, اثنين is Monday ("من الاثنين إلى السبت"), so the masculine forms of two
+# take no particle except the conjunction.
+2 = =اثنان | =اثنين | اثنتان | اثنتين
 3 = ثلاثة | ثلاث
 4 = أربعة | أربع
 5 = خمسة | خمس

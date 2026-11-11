@@ -242,3 +242,25 @@ meaning, two numbers swapped between nouns, an inflected forbidden phrase, a clo
 Dutch compound number, a name replaced by a pronoun, an unlisted Arabic dual, a suffix on a
 broken plural, and Arabic hundreds.
 
+## The test half
+
+The first batch sent three requests at a time with no pause, and 43 of 160 were refused with
+HTTP 429, all in the test half. They were sent again one at a time with a four-second pause, and
+all 43 came back. `generate.py` now does that by default.
+
+The test half was labelled by reading after the dev tuning, its labels were committed, and the
+checker then ran on it once: 70 of 80 documents got the same rules as their label. Eight of the
+ten differences had been predicted in the label notes. The two that had not were one mistake:
+`الاثنين` in "from Monday to Saturday" was read as "the two". The masculine forms of two now
+take no particle except the conjunction, which costs "لاثنين" (for two) and keeps Monday out.
+That change was made after the test run, so the 72 of 80 it gives is not a blind number, and
+the README shows both rows.
+
+Nothing else was changed after the test run. The clock times, the Dutch compounds, the unlisted
+dual and "one" as a bare word stay as they are and are listed as limits.
+
+The labels of both halves were written by the coding agent that built this version. That is the
+weakest part of the experiment: the reader who labelled the documents also wrote the checker.
+The hashes and the commit order show the labels came first; they do not make the reader
+independent.
+

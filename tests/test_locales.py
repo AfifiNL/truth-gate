@@ -107,6 +107,9 @@ def test_arabic_digits(text: str, want: list[str]) -> None:
         ("خلال ساعتين", ["2"]),  # a listed dual noun: two hours
         ("لشهرين", ["2"]),
         ("مستودعان", []),  # a dual that is not listed is not read
+        ("من الاثنين إلى السبت", []),  # Monday to Saturday: Monday is not "the two"
+        ("من الإثنين إلى الجمعة", []),
+        ("اثنين من العملاء واثنان آخران", ["2", "2"]),
     ],
 )
 def test_arabic_number_words(text: str, want: list[str]) -> None:
