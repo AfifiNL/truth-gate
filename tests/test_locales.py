@@ -100,6 +100,13 @@ def test_arabic_digits(text: str, want: list[str]) -> None:
         ("واحد مليون", ["1000000"]),
         ("مئتان وألفين", ["200", "2000"]),
         ("الثلاثاء", []),  # Tuesday contains the letters of "three"
+        ("اثني عشر شخصا", ["12"]),
+        ("ثلاث عشرة شحنة", ["13"]),
+        ("عشرين عميلا", ["20"]),
+        ("خمسة وعشرين شخصا", ["25"]),
+        ("خلال ساعتين", ["2"]),  # a listed dual noun: two hours
+        ("لشهرين", ["2"]),
+        ("مستودعان", []),  # a dual that is not listed is not read
     ],
 )
 def test_arabic_number_words(text: str, want: list[str]) -> None:

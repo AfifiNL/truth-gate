@@ -1,0 +1,6 @@
+{
+  "_comment": "Regression-only gate: model-written text, so no floor was chosen in advance. Any metric getting worse than baseline.json, or a document whose outcome changes from agreeing with its label to not agreeing, fails.",
+  "min_catch_rate": 0.0,
+  "max_false_alarm_rate": 1.0,
+  "tolerance": 0.0
+}

@@ -153,23 +153,23 @@ HARD: list[tuple[str, str, str, str, str]] = [
     (
         "h7",
         "ar",
-        "clean",  # the Arabic dual says "two" without a number word
-        "Get the first two months free.",
-        "احصل على أول شهرين مجانًا.",
+        "clean",  # a dual noun that is not in the list says "two" without a number word
+        "Two warehouses are open.",
+        "مستودعان مفتوحان.",
     ),
     (
         "h8",
         "ar",
-        "clean",  # a possessive suffix on a term is not a listed form
-        "Your shipment is on its way.",
-        "شحنتك في الطريق.",
+        "clean",  # a suffix on a broken plural changes the word's spelling
+        "Open our customer portal.",
+        "افتح بوابة عملائنا.",
     ),
     (
         "h9",
         "ar",
-        "clean",  # a compound number word is read as two numbers
-        "A team of 25 people.",
-        "فريق من خمسة وعشرين شخصًا.",
+        "clean",  # hundreds written as one word with a compound are not read
+        "Our 350 drivers know every route.",
+        "سائقونا الثلاثمئة والخمسون يعرفون كل طريق.",
     ),
 ]
 

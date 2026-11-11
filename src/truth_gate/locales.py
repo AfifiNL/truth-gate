@@ -116,6 +116,7 @@ class LocaleData:
     ordinal_suffixes: tuple[str, ...]
     number_particles: frozenset[str]
     word_particles: tuple[str, ...]
+    pronoun_suffixes: tuple[str, ...]
     scale_rx: re.Pattern[str] = field(init=False, repr=False, compare=False)
     percent_rx: re.Pattern[str] = field(init=False, repr=False, compare=False)
     currency_rx: re.Pattern[str] | None = field(init=False, repr=False, compare=False)
@@ -153,12 +154,18 @@ class LocaleData:
         scale_ahead = "(?=" + _SP + "+(?:" + _alt(self.scale_words) + r")(?!\w))"
         free = [w for w in self.number_words if w not in self.no_particle]
         parts: list[str] = []
-        if self.compound_units:
-            tens = [w for w, v in self.number_words.items() if v >= 20 and v % 10 == 0]
+        tens = [w for w, v in self.number_words.items() if 20 <= v < 100 and v % 10 == 0]
+        if self.compound_units and self.code == "nl":
             units = _alt(self.compound_units)
             # "vijfentwintig" = 5 + 20; "tweeduizend" = 2 x 1000
             parts.append(f"(?P<cu>{units})(?:en|\u00ebn)(?P<ct>{_alt(tens)})")
             parts.append(f"(?P<su>{units})(?P<ss>{_alt(self.bare_scale)})")
+        elif self.compound_units:
+            # Arabic "five and-twenty": a unit, a space, the conjunction glued to the ten
+            parts.append(
+                f"{self.particle_pattern()}(?P<cu>{_alt(self.compound_units)})"
+                f"\\s+\u0648(?P<ct>{_alt(tens)})"
+            )
         if free:
             parts.append(f"{self.particle_pattern()}(?P<num>{_alt(free)})")
         if self.no_particle:
@@ -168,7 +175,7 @@ class LocaleData:
         return re.compile(r"(?<!\w)(?:" + "|".join(parts) + r")(?!\w)", re.I)
 
     def word_value(self, m: re.Match[str]) -> Decimal:
-        g = {k: v.lower() for k, v in m.groupdict().items() if v is not None}
+        g = {k: " ".join(v.lower().split()) for k, v in m.groupdict().items() if v is not None}
         if "cu" in g:
             return self.compound_units[g["cu"]] + self.number_words[g["ct"]]
         if "su" in g:
@@ -183,7 +190,35 @@ class LocaleData:
 
 
 def _alt(words: Iterable[str]) -> str:
-    return "|".join(re.escape(w) for w in sorted(words, key=len, reverse=True))
+    """Alternation, longest first; a space in a form matches any run of whitespace."""
+    return "|".join(
+        re.escape(w).replace(r"\ ", r"\s+") for w in sorted(words, key=len, reverse=True)
+    )
+
+
+def term_pattern(form: str, data: LocaleData) -> str:
+    """Regex fragment for one target form of a term.
+
+    Dutch: the form as written. Arabic: the definite article is ignored on every word
+    ("شركة النقل" and "شركة نقل" are the same term), and the last word may carry a pronoun
+    suffix ("شحنتك" uses the term "شحنة").
+    """
+    words = fold_text(form.strip(), data.code).split()
+    if data.code != "ar":
+        return r"\s+".join(re.escape(w) for w in words)
+    article = "\u0627\u0644"
+    suffix = "(?:" + _alt(data.pronoun_suffixes) + ")" if data.pronoun_suffixes else ""
+    out: list[str] = []
+    for i, word in enumerate(words):
+        bare = word[2:] if word.startswith(article) and len(word) > 4 else word
+        body = re.escape(bare)
+        if suffix and i == len(words) - 1:
+            if bare.endswith("\u0629"):  # ta marbuta opens to ta before a suffix
+                body = f"(?:{body}|{re.escape(bare[:-1])}\u062a{suffix})"
+            else:
+                body = f"{body}{suffix}?"
+        out.append(f"(?:{article})?{body}")
+    return r"\s+".join(out)
 
 
 def _read_sections(code: str) -> dict[str, list[tuple[str | None, list[str]]]]:
@@ -233,6 +268,7 @@ def load(code: str) -> LocaleData:
             number_words[word] = Decimal(key or "0")
             if form.startswith("="):
                 strict.add(word)
+    number_words.update(values("dual-nouns"))
     return LocaleData(
         code=code,
         number_words=number_words,
@@ -250,6 +286,7 @@ def load(code: str) -> LocaleData:
         ordinal_suffixes=flat("ordinal-suffixes"),
         number_particles=frozenset(flat("number-particles")),
         word_particles=flat("word-particles"),
+        pronoun_suffixes=flat("pronoun-suffixes"),
     )
 
 

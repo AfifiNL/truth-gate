@@ -75,7 +75,7 @@ def rules_block(brand: dict[str, Any], market: str) -> str:
     lines = ["Brand rules for this market (follow every one):"]
     lines.append("- Keep these names exactly as written: " + ", ".join(brand["do_not_translate"]))
     for term in m.get("terms", []):
-        lines.append(f"- For \"{term['source']}\" use: " + " / ".join(term["target"]))
+        lines.append(f'- For "{term["source"]}" use: ' + " / ".join(term["target"]))
     if m.get("forbidden"):
         lines.append("- Never use these phrases: " + "; ".join(m["forbidden"]))
     for required in m.get("required_lines", []):

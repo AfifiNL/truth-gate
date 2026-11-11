@@ -47,6 +47,6 @@
 {"id": "h4", "split": "dev", "market": "nl-NL", "kind": "clean", "hard": true, "source": "You can change the delivery address until 6 pm.", "target": "Je kunt het afleveradres wijzigen tot 18.00 uur.\n\nPrijzen zijn exclusief btw."}
 {"id": "h5", "split": "test", "market": "nl-NL", "kind": "clean", "hard": true, "source": "Our 350 drivers know every route.", "target": "Onze driehonderdvijftig chauffeurs kennen elke route.\n\nPrijzen zijn exclusief btw."}
 {"id": "h6", "split": "dev", "market": "nl-NL", "kind": "clean", "hard": true, "source": "TrackBoard is new. TrackBoard shows every route.", "target": "TrackBoard is nieuw. Het toont elke route.\n\nPrijzen zijn exclusief btw."}
-{"id": "h7", "split": "test", "market": "ar", "kind": "clean", "hard": true, "source": "Get the first two months free.", "target": "احصل على أول شهرين مجانًا.\n\nالأسعار لا تشمل ضريبة القيمة المضافة."}
-{"id": "h8", "split": "dev", "market": "ar", "kind": "clean", "hard": true, "source": "Your shipment is on its way.", "target": "شحنتك في الطريق.\n\nالأسعار لا تشمل ضريبة القيمة المضافة."}
-{"id": "h9", "split": "test", "market": "ar", "kind": "clean", "hard": true, "source": "A team of 25 people.", "target": "فريق من خمسة وعشرين شخصًا.\n\nالأسعار لا تشمل ضريبة القيمة المضافة."}
+{"id": "h7", "split": "test", "market": "ar", "kind": "clean", "hard": true, "source": "Two warehouses are open.", "target": "مستودعان مفتوحان.\n\nالأسعار لا تشمل ضريبة القيمة المضافة."}
+{"id": "h8", "split": "dev", "market": "ar", "kind": "clean", "hard": true, "source": "Open our customer portal.", "target": "افتح بوابة عملائنا.\n\nالأسعار لا تشمل ضريبة القيمة المضافة."}
+{"id": "h9", "split": "test", "market": "ar", "kind": "clean", "hard": true, "source": "Our 350 drivers know every route.", "target": "سائقونا الثلاثمئة والخمسون يعرفون كل طريق.\n\nالأسعار لا تشمل ضريبة القيمة المضافة."}

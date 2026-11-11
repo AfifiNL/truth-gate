@@ -16,10 +16,46 @@
 8 = ثمانية | ثماني | ثمان
 9 = تسعة | تسع
 10 = عشرة | =عشر
-# dual forms
+# eleven to nineteen, and the tens
+11 = أحد عشر | إحدى عشرة
+12 = اثنا عشر | اثني عشر | اثنتا عشرة | اثنتي عشرة
+13 = ثلاثة عشر | ثلاث عشرة
+14 = أربعة عشر | أربع عشرة
+15 = خمسة عشر | خمس عشرة
+16 = ستة عشر | ست عشرة
+17 = سبعة عشر | سبع عشرة
+18 = ثمانية عشر | ثماني عشرة
+19 = تسعة عشر | تسع عشرة
+20 = عشرون | عشرين
+30 = ثلاثون | ثلاثين
+40 = أربعون | أربعين
+50 = خمسون | خمسين
+60 = ستون | ستين
+70 = سبعون | سبعين
+80 = ثمانون | ثمانين
+90 = تسعون | تسعين
+# dual forms of numbers
 200 = مئتان | مئتين | مائتان | مائتين
 2000 = ألفان | ألفين
 2000000 = مليونان | مليونين
+
+[dual-nouns]
+# A dual noun says "two" without a number word: "ساعتين" is two hours. Only the nouns listed
+# here are read; any other dual is not (the source's 2 is then reported as missing).
+2 = ساعتان | ساعتين | دقيقتان | دقيقتين | يومان | يومين | أسبوعان | أسبوعين | شهران | شهرين
+2 = عامان | عامين | سنتان | سنتين | مرتان | مرتين
+
+[compound-units]
+# first part of "خمسة وعشرين" (25): a unit, the conjunction, then one of the tens above
+1 = واحد | واحدة | إحدى
+2 = اثنان | اثنين | اثنتان | اثنتين
+3 = ثلاثة | ثلاث
+4 = أربعة | أربع
+5 = خمسة | خمس
+6 = ستة | ست
+7 = سبعة | سبع
+8 = ثمانية | ثماني | ثمان
+9 = تسعة | تسع
 
 [needs-scale]
 # only a number when a scale word follows ("واحد مليون"); alone it is often "one of ..."
@@ -50,6 +86,11 @@ USD = دولار | دولارات
 [number-particles]
 # may be written directly in front of digits: "ب20", "و5", "ل3"
 و | ف | ب | ل | ك | وب | ول | فب | فل
+
+[pronoun-suffixes]
+# attached to the last word of a term: "شحنتك" (your shipment) still uses the term "شحنة".
+# A final ة becomes ت before the suffix.
+ي | ك | ه | ها | نا | كم | هم | كما | هما | كن | هن
 
 [word-particles]
 # stripped from the front of a word before a number word, a term or a phrase is matched:

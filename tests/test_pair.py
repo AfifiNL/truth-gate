@@ -142,10 +142,19 @@ def test_terms_follow_the_source() -> None:
 
 def test_arabic_terms_match_with_attached_particles_and_diacritics() -> None:
     terms = [{"source": ["shipment"], "target": ["شحنة"]}]
-    for target in ("تابع الشحنة.", "تابع كل شُحنة.", "للشحنة رقم.", "وبالشحنة."):
+    for target in ("تابع الشحنة.", "تابع كل شُحنة.", "للشحنة رقم.", "وبالشحنة.", "تابع شحنتك."):
         assert run("Track the shipment.", target, market="ar", terms=terms).passed, target
-    # A suffix is not stripped: "your shipment" needs its own listed form.
-    assert not run("Track the shipment.", "تابع شحنتك.", market="ar", terms=terms).passed
+    # Another word for the same thing is still a missing term.
+    assert not run("Track the shipment.", "تابع الطرد.", market="ar", terms=terms).passed
+
+
+def test_arabic_terms_ignore_the_article_inside_a_phrase() -> None:
+    terms = [{"source": ["carrier"], "target": ["شركة النقل"]}]
+    for target in ("أضف شركة نقل جديدة.", "اتصل بشركة النقل.", "شركة نقلك في الطريق."):
+        assert run("Add a carrier.", target, market="ar", terms=terms).passed, target
+    assert not run("Add a carrier.", "أضف الناقل.", market="ar", terms=terms).passed
+    # The article is not ignored for forbidden phrases: "the cheapest" is not "cheaper".
+    assert run("A fair price.", "سعر أرخص.", market="ar", forbidden=["الأرخص"]).passed
 
 
 def test_forbidden_phrases_and_required_lines() -> None:

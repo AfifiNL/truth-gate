@@ -39,6 +39,9 @@ pair-cases:      ## rebuild evals/pairs/cases.jsonl from evals/pairs/build_cases
 llm-set:         ## regenerate evals/llm with a live model (set TG_MAX_LIVE_CALLS=48; costs money)
 	TG_MAX_LIVE_CALLS=$(TG_MAX_LIVE_CALLS) $(UV) run --group live python evals/llm/generate.py
 
+l10n-set:        ## localise evals/l10n/sources.jsonl with a live model (set TG_MAX_LIVE_CALLS=160; costs money)
+	TG_MAX_LIVE_CALLS=$(TG_MAX_LIVE_CALLS) $(UV) run --group live python evals/l10n/generate.py
+
 demo:            ## check the two example documents
 	-$(UV) run truth-gate check examples/pass.md --facts examples/facts.yaml
 	-$(UV) run truth-gate check examples/fail.md --facts examples/facts.yaml

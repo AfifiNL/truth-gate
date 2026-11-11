@@ -149,6 +149,102 @@ def evaluate_pairs(
     return scores, rows
 
 
+L10N_RULES = ("number", "name", "term", "forbidden", "required-line", "address")
+
+
+def evaluate_l10n(
+    root: Path, splits: tuple[str, ...] = ("dev", "test")
+) -> tuple[dict[str, dict[str, float]], list[dict[str, Any]]]:
+    """Score the localisation experiment (root/l10n): texts a live model localised, labelled
+    by reading before the checker was run on them.
+
+    Per document the checker's error rules are compared with the labelled rules. `ok` means
+    they are the same set. `catch_rate` is the share of documents with a labelled violation
+    where every labelled rule was reported; `false_alarm_rate` the share of all documents
+    where a rule was reported that the label does not have. Per rule: `catch_<rule>` over the
+    documents labelled with it, `extra_<rule>` the number of documents where it was reported
+    without a label. Documents whose text no longer matches its label's hash are an error.
+    """
+    import hashlib
+
+    brand = load_brand(root / "l10n" / "brand.yaml")
+    checkers = {name: PairChecker(brand, name) for name in brand.markets}
+    sources = {
+        s["id"]: s["text"]
+        for s in map(json.loads, (root / "l10n" / "sources.jsonl").read_text("utf-8").splitlines())
+    }
+    lines = (root / "l10n" / "documents.jsonl").read_text(encoding="utf-8").splitlines()
+    docs = {d["id"]: d for d in map(json.loads, lines) if "id" in d}
+    rows: list[dict[str, Any]] = []
+    for lab in map(json.loads, (root / "l10n" / "labels.jsonl").read_text("utf-8").splitlines()):
+        doc = docs[lab["id"]]
+        if doc["split"] not in splits:
+            continue
+        if hashlib.sha256(doc["target"].encode("utf-8")).hexdigest() != lab["sha256"]:
+            raise ValueError(f"{lab['id']}: the text changed after it was labelled")
+        report = checkers[doc["market"]].check(sources[doc["source_id"]], doc["target"])
+        found = {f.rule for f in report.findings if f.severity == "error"} & set(L10N_RULES)
+        labelled = set(lab["violations"])
+        rows.append(
+            {
+                "id": lab["id"],
+                "split": doc["split"],
+                "market": doc["market"],
+                "condition": doc["condition"],
+                "kind": "violation" if labelled else "clean",
+                "hard": False,
+                "ok": found == labelled,
+                "passed": report.passed,
+                "labelled": sorted(labelled),
+                "error_checks": sorted(found),
+                "missed": sorted(labelled - found),
+                "extra": sorted(found - labelled),
+            }
+        )
+    scores = {
+        scope: _l10n_rates([r for r in rows if scope == "all" or r["split"] == scope])
+        for scope in ("all", *splits)
+    }
+    return scores, rows
+
+
+def _l10n_rates(sel: list[dict[str, Any]]) -> dict[str, float]:
+    bad = [r for r in sel if r["labelled"]]
+    s: dict[str, float] = {
+        "cases": len(sel),
+        "agreement": round(sum(r["ok"] for r in sel) / len(sel), 3) if sel else 1.0,
+        "catch_rate": round(sum(not r["missed"] for r in bad) / len(bad), 3) if bad else 1.0,
+        "false_alarm_rate": round(sum(bool(r["extra"]) for r in sel) / len(sel), 3) if sel else 0.0,
+    }
+    for rule in L10N_RULES:
+        with_rule = [r for r in sel if rule in r["labelled"]]
+        if with_rule:
+            s[f"catch_{rule}"] = round(
+                sum(rule not in r["missed"] for r in with_rule) / len(with_rule), 3
+            )
+        s[f"extra_{rule}"] = sum(rule in r["extra"] for r in sel)
+    return s
+
+
+def l10n_violation_rates(rows: list[dict[str, Any]]) -> dict[str, dict[str, float]]:
+    """From the labels alone: per market and prompt condition, the share of documents that
+    break each rule, and the share that break any rule other than the required line."""
+    out: dict[str, dict[str, float]] = {}
+    for market in sorted({r["market"] for r in rows}):
+        for condition in ("bare", "rules"):
+            sel = [r for r in rows if r["market"] == market and r["condition"] == condition]
+            if not sel:
+                continue
+            rates: dict[str, float] = {"documents": len(sel)}
+            for rule in L10N_RULES:
+                rates[rule] = round(sum(rule in r["labelled"] for r in sel) / len(sel), 3)
+            rates["any_but_required_line"] = round(
+                sum(bool(set(r["labelled"]) - {"required-line"}) for r in sel) / len(sel), 3
+            )
+            out[f"{market} {condition}"] = rates
+    return out
+
+
 def _rates(sel: list[dict[str, Any]]) -> dict[str, float]:
     errs = [r for r in sel if r["kind"] != "clean"]
     clean = [r for r in sel if r["kind"] == "clean"]
@@ -244,6 +340,23 @@ def run_eval(root: Path, split: str, update_baseline: bool, out: Path | None) ->
         problems += _gate_or_record(
             root / "pairs", pair_shown, pair_rows, update_baseline, "pairs "
         )
+    if (root / "l10n" / "labels.jsonl").exists():
+        l10n_splits = ("dev", "test") if split == "all" else (split,)
+        print(f"localisation experiment (evals/l10n; {', '.join(l10n_splits)})")
+        l10n_scores, l10n_rows = evaluate_l10n(root, l10n_splits)
+        l10n_shown = {k: v for k, v in l10n_scores.items() if v["cases"]}
+        if split != "all":
+            l10n_shown = {split: l10n_scores[split]} if l10n_scores[split]["cases"] else {}
+        for scope, sc in l10n_shown.items():
+            print("  " + scope + ": " + ", ".join(f"{k} {v}" for k, v in sc.items()))
+        for r in l10n_rows:
+            if not r["ok"]:
+                print(
+                    f"    differs {r['id']} {r['split']}: missed={r['missed']} extra={r['extra']}"
+                )
+        for key, rates in l10n_violation_rates(l10n_rows).items():
+            print(f"  labelled {key}: " + ", ".join(f"{k} {v}" for k, v in rates.items()))
+        problems += _gate_or_record(root / "l10n", l10n_shown, l10n_rows, update_baseline, "l10n ")
     if update_baseline:
         return 0
     for p in problems:

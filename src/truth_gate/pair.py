@@ -33,7 +33,15 @@ from pydantic import BaseModel, Field
 from truth_gate.brand import Brand, Market
 from truth_gate.checker import MAX_DOCUMENT_CHARS, Checker, DocumentTooLarge
 from truth_gate.facts import Facts
-from truth_gate.locales import fold, fold_text, language_of, load, scan_target, unfold
+from truth_gate.locales import (
+    fold,
+    fold_text,
+    language_of,
+    load,
+    scan_target,
+    term_pattern,
+    unfold,
+)
 from truth_gate.numbers import Quantity, scan
 from truth_gate.report import Report, Severity
 from truth_gate.text import line_col, mask
@@ -149,7 +157,7 @@ class PairChecker:
                     r"(?<!\w)"
                     + particle
                     + "(?:"
-                    + "|".join(self._phrase(t, self.lang) for t in term.target)
+                    + "|".join(term_pattern(t, self._data) for t in term.target)
                     + r")(?!\w)",
                     re.I,
                 ),
